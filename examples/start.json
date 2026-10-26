@@ -1,0 +1,13 @@
+{
+  "task": {
+    "task_id": "digits-demo-001",
+    "project_id": "research-demo",
+    "template_id": "digits-mlp-v1",
+    "objective": "Improve validation accuracy under a fixed budget",
+    "metric_key": "accuracy",
+    "metric_direction": "maximize",
+    "budget": { "max_trials": 2, "max_seconds": 300 },
+    "allowed_edit_paths": ["model.py"],
+    "use_history": false
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "task": {
+    "task_id": "forecasting-demo-001",
+    "project_id": "research-demo",
+    "template_id": "etth1-ridge-v1",
+    "objective": "Improve validation accuracy under a fixed budget",
+    "metric_key": "mse",
+    "metric_direction": "minimize",
+    "budget": {
+      "max_trials": 2,
+      "max_seconds": 300
+    },
+    "allowed_edit_paths": [
+      "model.py"
+    ],
+    "use_history": false
+  }
+}

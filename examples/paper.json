@@ -1,0 +1,11 @@
+{
+  "project_id": "phase5-real-closed-loop",
+  "paper_id": "arxiv-1509.09169",
+  "version": "v9",
+  "title": "Lecture notes on ridge regression",
+  "authors": "Wessel N. van Wieringen",
+  "uri": "https://arxiv.org/abs/1509.09169v9",
+  "section": "Abstract — source-grounded paraphrase",
+  "text": "Ridge regression augments the regression loss with a penalty on squared coefficients. This addresses estimation identifiability problems in high-dimensional regression. The paper reviews estimator moments, mean squared error, constrained-estimation and Bayesian interpretations. It also discusses generalized penalties and logistic regression. The abstract does not provide a diabetes dataset result or an optimal alpha for this experiment; parameter choices remain hypotheses to evaluate on validation data.",
+  "document_sha256": "cb26f3e7d40cae3aa3d6e0a70988dd3d08970822965ae7f61921463ab38e773b"
+}

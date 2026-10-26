@@ -1,0 +1,76 @@
+name: evoresearch
+x-app: &app
+  build:
+    context: .
+    dockerfile: deploy/Dockerfile
+  env_file: .env
+  environment: &environment
+    AUTORESEARCH_HOME: /data
+    GRAPHITI_URI: bolt://neo4j:7687
+    GRAPHITI_PASSWORD: ${GRAPHITI_PASSWORD:?Set GRAPHITI_PASSWORD in .env}
+    EVORESEARCH_TOKEN: ${EVORESEARCH_TOKEN:?Set a random token of at least 24 characters}
+    AUTORESEARCH_RUNNER: local_trusted
+    GRAPHITI_EMBEDDING_CACHE: /cache/embeddings
+    EVORESEARCH_HOST: 0.0.0.0
+  volumes:
+    - research-data:/data
+    - model-cache:/cache
+  restart: unless-stopped
+  depends_on:
+    neo4j:
+      condition: service_healthy
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: neo4j/${GRAPHITI_PASSWORD:?Set GRAPHITI_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_usage__report_enabled: "false"
+    ports: ["127.0.0.1:17474:7474", "127.0.0.1:17687:7687"]
+    volumes: ["graphiti-data:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+  api:
+    <<: *app
+    ports: ["127.0.0.1:8091:8091", "127.0.0.1:9000:9000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8091/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+  worker:
+    <<: *app
+    command: ["python", "-m", "evoresearch", "worker"]
+  projection:
+    <<: *app
+    command: ["python", "apps/workbench/projection.py"]
+  pdf:
+    <<: *app
+    command: ["python", "apps/workbench/pdf_ingestion.py"]
+  dsh:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.dsh
+    env_file: .env
+    environment:
+      EVORESEARCH_TOKEN: ${EVORESEARCH_TOKEN:?Set EVORESEARCH_TOKEN}
+      DEEPSEEK_API_KEY: ${AUTORESEARCH_MODEL_API_KEY:-}
+    network_mode: service:api
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes: ["dsh-data:/dsh"]
+    restart: unless-stopped
+  mlflow:
+    <<: *app
+    profiles: ["tracking"]
+    command: ["mlflow", "ui", "--backend-store-uri", "sqlite:////data/mlflow.db", "--host", "0.0.0.0", "--port", "5000"]
+    ports: ["127.0.0.1:5000:5000"]
+volumes:
+  research-data:
+  graphiti-data:
+  model-cache:
+  dsh-data:
