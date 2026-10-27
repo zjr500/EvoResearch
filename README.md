@@ -72,24 +72,3 @@ docker compose down
 ```
 
 数据库、实验文件、DSH 会话和嵌入模型使用 Docker 命名卷，`down` 保留数据。不要使用 `down -v`，除非明确要删除数据。默认 `local_trusted` 在 Worker 容器内执行受限模型代码；该部署面向可信团队，尚不是面向不可信用户的多租户平台。
-
-## 测试与接口
-
-在激活的 Python 3.12 环境中、Node 24 位于 PATH 时：
-
-```sh
-python scripts/test.py
-python scripts/check_repository.py
-```
-
-测试包含真实本机 CPU 训练、进程终止、临时数据库、HTTP 替身及前端状态回归，可能需要数分钟。自动测试不消耗真实模型 API，也不要求生产数据库。外部依赖闭环验证单列于 [验证说明](docs/testing.md)，不能用单元测试替代真实模型、Graphiti 或 DSH 浏览器验收。
-
-运行后的 OpenAPI 在 `http://127.0.0.1:8091/docs`。主要入口包括 `/api/templates`、`/api/experiments`、`/api/papers`、`/api/knowledge/search` 和 `/api/wb/projects`。API 使用 `Authorization: Bearer <EVORESEARCH_TOKEN>`；浏览器登录使用 HttpOnly 会话 cookie 与来源检查。请求例子在 `examples`，契约说明见 [接口契约](docs/contracts.md)。
-
-## 数据与协作
-
-仓库不携带密钥、数据库、实验产物、历史交付包、虚拟环境或 `node_modules`。原 AutoResearch 历史回放入口保留，但新克隆的历史数据为空；测试使用明确标注的合成数据。ETTh1 是固定任务输入数据，随任务资产保留，第三方说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
-
-旧环境数据保持在原位置，不能直接把旧数据库提交到仓库。私有数据恢复与迁移边界见 [迁移说明](docs/migration/README.md)。开发流程见 [CONTRIBUTING.md](CONTRIBUTING.md)。
-
-当前研究结论仍是：单次知识增强/无增强对照未证明普遍收益。完整部署的验证状态以 [测试记录](docs/testing.md) 为准。
