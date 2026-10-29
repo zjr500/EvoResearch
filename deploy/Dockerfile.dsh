@@ -1,7 +1,0 @@
-FROM node:24-bookworm-slim
-WORKDIR /opt/dsh
-RUN npm install --global pnpm@11.0.0 && pnpm add @deepseek-ai/dsh@0.2.1-rc.3 --ignore-scripts
-COPY plugins/dsh /opt/plugin
-COPY deploy/start-dsh.sh /opt/start-dsh.sh
-ENV DSH_HOME=/dsh
-ENTRYPOINT ["sh", "/opt/start-dsh.sh"]

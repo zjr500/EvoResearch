@@ -1,7 +1,0 @@
-{
-  "name": "evoresearch-workspace",
-  "private": true,
-  "type": "module",
-  "engines": {"node": ">=24.9.0"},
-  "scripts": {"test": "node --test tests/dsh/*.test.mjs tests/workbench/*.test.mjs tests/autoresearch/*.mjs tests/autoresearch/frontend/*.test.mjs"}
-}
