@@ -35,3 +35,15 @@ coverage/
 .coverage
 test-results/
 .DS_Store
+
+# Non-source deliverables and datasets
+target/
+datasets/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.parquet
+*.h5
+*.hdf5

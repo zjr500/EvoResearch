@@ -1,0 +1,6 @@
+- insert:
+    - id: evoresearch
+      name: dsh-evoresearch
+      config:
+        baseUrl: http://127.0.0.1:8091
+        tokenEnv: EVORESEARCH_TOKEN

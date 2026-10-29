@@ -1,74 +1,60 @@
 # EvoResearch
 
-面向科研任务的实验闭环与 DSH 原生科研工作台。该仓库整合第一至第五阶段正式功能以及最新工作台；后续修改以 Git Commit、功能分支和 Pull Request 交付。
+DSH 原生科研工作台：AI 自主实验、自进化科研知识库。当前版本 **0.8.0**。
 
-## 功能与模块
+默认采用 **Windows 本机部署，不安装或自动启动 Docker**。左侧 DSH 导航、中间原生对话、右侧双模块工作台；Graphiti 负责图谱与混合检索，不引入 LightRAG。
 
-| 目录 | 职责 |
-| --- | --- |
-| `packages/autoresearch` | 自主实验引擎、预算、受限代码修改、训练执行、停止/恢复、原 AutoResearch Web 页面 |
-| `services/research` | 任务适配与调度、MLflow 追踪、Graphiti 知识检索及异步投影、论文与来源冻结 |
-| `apps/workbench` | 科研项目 API、Zotero/CSL 导入、PDF 提取与重试、Windows 进程管理 |
-| `plugins/dsh` | DSH 原生右侧工作台、科研工具、携带来源进入原生会话 |
-| `contracts` | 实验、预算、状态、证据对象及服务端口契约 |
-| `tests` | 按引擎、服务、工作台、插件和契约组织的回归测试 |
-| `deploy` | Docker 镜像、Neo4j 配置、DSH 容器入口 |
-| `docs` | 架构、开发、部署和迁移核验说明 |
+## 快速开始
 
-支持 digits MLP、DLinear ETTh1、diabetes Ridge 和 ETTh1 Ridge。实验 Worker 与知识/追踪投影分离；投影服务暂时不可用时保留待处理事件。知识增强需要显式选择、同项目来源检索和来源冻结，不会静默退回无知识实验。
+1. 将本仓库完整下载或解压到可写目录，例如 `D:\EvoResearch`。
+2. 首次双击根目录 `Install.cmd`，按提示提供本机 DeepSeek 密钥文件路径。
+3. 以后双击 `Start.cmd`，打开 `http://127.0.0.1:9000`（首次认证使用启动器打开的登录链接）。
+4. 点击顶部 **EvoResearch** 启用工作台；本机访问码位于 `.audit-data/workbench-local/access-token.txt`。
+5. 停止使用运行 `Stop.cmd`；排查问题运行 `Check.cmd`；修改配置运行 `Configure.cmd`。
 
-## 环境与依赖
+需要 Windows 10/11 x64 与网络；安装器准备 Python 3.12、Node 24、pnpm 11 和依赖。Graphiti 功能另需 Neo4j + APOC，可连接独立或远程数据库；数据库离线不阻止网页启动，但知识检索、入库与知识增强实验不可用。首次安装和全新机器复现尚需实际验收。
 
-Python 3.12、Node.js >=24.9、pnpm 11、Docker Compose v2。DSH 固定 `@deepseek-ai/dsh@0.2.1-rc.3`；MLflow `3.5.1`、Graphiti `0.31.2`、FastEmbed `0.7.3` 通过 Python 包安装。Neo4j `5.26-community` 启用 APOC。未复制上述组件的上游仓库。AutoResearch 是本项目已有的定制引擎，源码及已生效的第五阶段修改直接维护在 `packages/autoresearch`。
+## 目录
 
-Python 完整版本集合在 `requirements-lock.txt`；Windows 专用包带平台条件。DLinear 真训练另外安装 `torch==2.8.0`。首次 Graphiti 检索需要下载 BGE 嵌入模型。
-
-## Windows 本机安装
-
-```powershell
-git clone https://github.com/zjr500/EvoResearch.git
-cd EvoResearch
-./apps/workbench/Install.cmd
+```text
+EvoResearch/
+├── Install.cmd / Start.cmd / Stop.cmd / Check.cmd / Configure.cmd
+├── apps/workbench/       # 科研 API、PDF、Windows 进程管理
+├── plugins/dsh/          # DSH 原生工作台与工具扩展
+├── services/research/    # 调度、MLflow、Graphiti、知识回流
+├── packages/autoresearch/# 实验方案、代码修改、训练与预算
+├── contracts/           # 接口与数据契约
+├── tests/               # 各模块回归测试
+├── docs/                # 部署、架构、迁移、验收
+├── examples/            # 示例
+├── scripts/             # 安装、测试、仓库检查与源码打包
+├── deploy/              # 可选的历史容器部署配置
+├── .github/workflows/   # CI 定义
+├── pyproject.toml / requirements-lock.txt / package.json
+└── .env.example         # 手动/可选 Compose 配置参考，无真实凭据
 ```
 
-安装器准备 Python 虚拟环境、Node、pnpm、DSH 和插件，并要求本地密钥文件路径。配置只保存在被忽略的 `.audit-data/workbench-local/config.json`；不要粘贴密钥到 GitHub。之后使用 `apps/workbench/Start.cmd`、`Stop.cmd`、`Check.cmd`、`Configure.cmd`。首次 Docker Desktop 安装可能要求完成 WSL 设置或重启。
+本机生成的 `.audit-*`、`.secrets`、`.env`、数据库和运行记录均不纳入源码交付。Windows 启动器读取私有 JSON 配置，不自动读取 `.env`。
 
-手动安装 Python 服务：
+## 文档入口
+
+- [Windows 安装与运行](docs/workbench/windows-deployment.md)
+- [迁移到另一台电脑](docs/migration/portable.md)
+- [部署与数据恢复](docs/deployment.md)
+- [双核心工作台](docs/workbench/two-core-workbench.md)
+- [最新浏览器验收范围](docs/workbench/windows-native-check-20261029.json)
+- [开发协作](CONTRIBUTING.md)
+- [第三方说明](THIRD_PARTY_NOTICES.md)
+
+## 开发与验证
 
 ```powershell
 ./scripts/setup.ps1 -Python python
+.audit-venvs/phase5/Scripts/python.exe scripts/test.py
+.audit-venvs/phase5/Scripts/python.exe scripts/check_repository.py
+.audit-venvs/phase5/Scripts/python.exe scripts/package_source.py
 ```
 
-Linux/macOS 开发安装：
+打包输出在 `dist/`，包含 Git 已跟踪及未忽略的源码/文档和完整隐藏 `.git` 目录，附 SHA256 清单；不包含密钥、依赖环境或实验数据。打包前检查历史 Git 对象中的大文件和凭据特征。离线电脑仍需提前准备依赖，源码包不是免安装运行环境。
 
-```sh
-python3.12 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements-lock.txt
-python -m pip install --no-deps --no-build-isolation -e packages/autoresearch -e .
-# 使用 DLinear 真训练时：
-python -m pip install torch==2.8.0
-```
-
-Python 服务不会自动读取 `.env`；手动启动需通过 shell 注入环境变量。Compose 自动读取 `.env`，Windows 启动器使用私有 JSON 配置。详情见 [部署说明](docs/deployment.md)。
-
-## Docker Compose
-
-```sh
-cp .env.example .env
-# 编辑 .env：填写模型 Key、独立数据库密码、至少 24 字符的随机访问码
-docker compose build
-docker compose up -d
-docker compose ps
-docker compose logs dsh
-```
-
-浏览器打开 DSH 日志中的本机登录链接，进入 EvoResearch 右侧工作台，使用 `.env` 中的 `EVORESEARCH_TOKEN` 登录。登录链接携带凭据，不要共享。浏览器使用 `http://127.0.0.1:9000`，API 为 `http://127.0.0.1:8091`。DSH 与 API 共享网络命名空间，以保留插件的本机接口地址。服务端口仅绑定回环地址。
-
-```sh
-docker compose --profile tracking up -d mlflow
-# MLflow UI: http://127.0.0.1:5000
-docker compose down
-```
-
-数据库、实验文件、DSH 会话和嵌入模型使用 Docker 命名卷，`down` 保留数据。不要使用 `down -v`，除非明确要删除数据。默认 `local_trusted` 在 Worker 容器内执行受限模型代码；该部署面向可信团队，尚不是面向不可信用户的多租户平台。
+第五阶段知识增强与无增强结果持平，保留真实结论。当前数据库离线；页面验收不代表在线知识闭环或多任务收益验证完成。

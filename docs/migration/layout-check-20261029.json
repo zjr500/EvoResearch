@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-29",
+  "version": "0.8.0",
+  "canonical_repository": "EvoResearch",
+  "source_sync": {
+    "plugins/dsh/client.js": "2414a46037a99f90b4d4f48ce919ff44fe3e1ce50a83b0a79ad46d1276b84064",
+    "plugins/dsh/package.json": "a2d39efc7e258b91acd6753b064f4492988288afb848ab3dad949abe39e15e16",
+    "plugins/dsh/tools.mjs": "c3d737bcc3768d58863bf6d01a9c709eb391f1ebeb79f05ebf76dbe4eac264b3",
+    "plugins/dsh/index.mjs": "984dbd1bbbacbfbad0dd3104f266d69f38ce5976399a9586b8d4d91d60cea382",
+    "plugins/dsh/cordis.patch.yml": "5f0a807d34f2bcbe3f0137a1c4a074af36e5d38114812431878e54349cb6f114"
+  },
+  "runtime_data_moved": false,
+  "secrets_included": false,
+  "remote_pushed": false
+}

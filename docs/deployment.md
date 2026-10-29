@@ -1,3 +1,5 @@
+> 默认入口已改为根目录 Install.cmd / Start.cmd；不安装或启动 Docker。先阅读 [迁移指南](migration/portable.md)。
+
 # 部署与运行
 
 ## 手动服务
@@ -17,11 +19,11 @@ Windows 完整安装：`apps/workbench/Install.cmd`。安装文件位于 `.audit
 
 Zotero 可选配置：`ZOTERO_LIBRARY_TYPE=users`（群组为 `groups`）、`ZOTERO_LIBRARY_ID`、`ZOTERO_API_KEY` 或 `ZOTERO_API_KEY_FILE`。仅从 Zotero 读取；支持 CSL JSON、摘要、PDF 下载/上传与提取，不传播远端删除。
 
-## Compose
+## 可选历史 Compose 方案（非默认）
 
 根目录 `compose.yaml` 启动 API、实验 Worker、投影 Worker、PDF Worker、DSH 与 Neo4j。可选 tracking profile 启动 MLflow UI。Python 组件共用镜像和 `/data`，保持 SQLite、实验文件及 MLflow 文件 URI 一致；Graphiti 使用独立 Neo4j 卷。DSH 是 npm 安装的上游发布版本，插件是本仓库本地包。
 
-`deploy/compose.neo4j.yaml` 只启动 Neo4j，供 Windows 本机启动器使用；不要和根 Compose 同时占用 17474/17687 端口。
+`deploy/compose.neo4j.yaml` 只启动 Neo4j，仅供手动选择容器数据库时参考；Windows 启动器不会调用它；不要和根 Compose 同时占用 17474/17687 端口。
 
 如果本机已有服务占用 8091/9000 或旧 Neo4j 端口，应先明确停止该服务或调整整套端口/浏览器来源配置。不要删除旧数据卷解决端口冲突。
 
