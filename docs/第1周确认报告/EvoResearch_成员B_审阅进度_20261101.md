@@ -25,4 +25,4 @@
 
 参考：[DSH 插件教程](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/index.md)、[DSH SSH 说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/ssh/ssh/README.md)、[AIDE 项目](https://github.com/WecoAI/aideml)。
 
-验证脚本：[实验循环](../poc/member_b/experiment_loop.mjs)、[SSH 回环](../poc/member_b/ssh_loopback.py)。
+验证脚本：[实验循环](../../poc/member_b/experiment_loop.mjs)、[SSH 回环](../../poc/member_b/ssh_loopback.py)。
