@@ -1,10 +1,10 @@
-# EvoResearch 项目立项报告审阅与成员 B 进度
+# EvoResearch 马雨瑶立项报告审阅进度
 
-日期：2026 年 11 月 1 日｜分支：myy｜状态：立项已审阅，成员 B 已认领，调研与最小验证已完成。
+日期：2026 年 11 月 1 日｜分支：main｜状态：立项已审阅，马雨瑶已认领，调研与最小验证已完成。
 
 ## 已审阅与认领
 
-- 已审阅立项报告 v2.1 的功能清单、里程碑、分工和风险。认领成员 B 的自主实验子系统：F5 研究任务定义、F6 Agent 自主实验循环、F7 SSH 算力接入与远程执行，负责相应前后端、数据设计及 DSH 会话对接。
+- 已审阅立项报告 v2.1 的功能清单、里程碑、分工和风险。马雨瑶认领自主实验子系统：F5 研究任务定义、F6 Agent 自主实验循环、F7 SSH 算力接入与远程执行，负责相应前后端、数据设计及 DSH 会话对接。
 
 ## 已完成的调研
 
@@ -20,9 +20,9 @@
 
 ## 审阅意见与下一步
 
-- 时间表第 4 周将 F4 分给 A，分工表将 F4 分给 C，建议统一。第 2 周应冻结 F5 任务字段、F6 状态事件及 F7 执行结果的接口。
+- 时间表第 4 周写张嘉荣开发 F4，分工表由胡语晨负责 F4，建议统一。第 2 周应冻结 F5 任务字段、F6 状态事件及 F7 执行结果的接口。
 - F7 的凭证管理、远端独立工作目录、命令审批与沙箱策略需写成可测试约束；仅靠危险命令黑名单难以覆盖生成脚本。下一步用团队 GPU 服务器验证远程训练与 DSH 集成。
 
 参考：[DSH 插件教程](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/index.md)、[DSH SSH 说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/ssh/ssh/README.md)、[AIDE 项目](https://github.com/WecoAI/aideml)。
 
-验证脚本：[实验循环](../../poc/member_b/experiment_loop.mjs)、[SSH 回环](../../poc/member_b/ssh_loopback.py)。
+验证脚本：[实验循环](../../poc/mayuyao/experiment_loop.mjs)、[SSH 回环](../../poc/mayuyao/ssh_loopback.py)。
