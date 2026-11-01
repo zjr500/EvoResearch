@@ -1,0 +1,19 @@
+# Local agent instructions
+AGENTS.md
+AGENT.md
+agents.md
+agent.md
+
+# Editable Word files stay local; existing tracked project sources are retained.
+*.doc
+*.docx
+*.docm
+*.docs
+~$*
+
+# New documents under docs are submitted as PDF only.
+docs/**
+!docs/**/
+!docs/**/*.pdf
+!docs/**/*.PDF
+!docs/**/.gitkeep
