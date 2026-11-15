@@ -54,12 +54,17 @@ def main(srs_path, api_path):
 
     tables = [table_rows(item) for item in api if item.tag == f"{W}tbl"]
     api_list = next(rows for rows in tables if rows and rows[0][0] == "接口")
+    schema_names = [text(item).split("（", 1)[0] for item in api
+                    if item.tag == f"{W}p"
+                    and style(item) in {"3", "Heading3"}
+                    and re.fullmatch(r"[a-z_]+（[^）]+）", text(item))]
     api_text = text(api)
     srs_text = text(srs)
     assert len(use_cases) == 13, use_cases
     assert sum(contracts.values()) == 25, contracts
     assert [contracts[f"{n:02d}"] for n in (5, 6, 7)] == [2, 4, 3], contracts
     assert len(api_list) - 1 == 30, len(api_list)
+    assert len(schema_names) == len(set(schema_names)) == 13, schema_names
     assert "按领域模型建立 12 张表，另设 1 张操作记录表" in api_text
     assert "remote_hosts（远程主机）" in api_text
     assert "taskId（草稿任务编号" in srs_text
