@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/evoresearch-hero.png" alt="EvoResearch：AI 自主实验与自进化知识库" width="100%">
+  <img src="assets/evoresearch-hero-v2.png" alt="EvoResearch：AI 自主实验与自进化知识库" width="100%">
 </p>
 
 # EvoResearch
