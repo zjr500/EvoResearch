@@ -1,0 +1,9 @@
+{
+  "lab-gpu": {
+    "host": "lab-gpu",
+    "launch": { "kind": "node-script", "node": "/absolute/path/to/node" },
+    "helper": "/absolute/path/to/dsh-ssh-helper.js",
+    "helperHash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "workspace": "/absolute/path/to/remote/workspace"
+  }
+}
