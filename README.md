@@ -10,3 +10,7 @@ EvoResearch 是基于 DeepSeek Harness（DSH）的 AI 自主实验与自进化�
 - **自进化知识库**：支持论文导入、自动摘要、语义检索与文献图谱；实验报告自动回流，并为后续实验和 DSH 对话提供带来源的参考。
 
 项目计划采用 10 周增量迭代开发，详见 [项目立项报告（最终版）](docs/项目立项报告_最终版.docx)。
+
+## 系统架构
+
+![EvoResearch 系统架构](assets/evoresearch-architecture.png)
