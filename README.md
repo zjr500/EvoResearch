@@ -15,6 +15,8 @@ EvoResearch 是基于 DeepSeek Harness（DSH）的 AI 自主实验与自进化�
 
 运行环境为 Node.js ≥20、DSH 0.2.1-rc.2。源码位于 `src/`，TypeScript 编译为 ESM；`cordis.patch.yml` 是 DSH bundle 的加载入口。`migrations/` 用于各模块提交 SQLite 建表脚本。插件数据库由 `better-sqlite3` 管理，`sqlite-vec` 留给后续 F3 检索使用。
 
+依赖以实际 DSH 0.2.1-rc.2 宿主为准：`dsh-tools` peer 使用 `0.2.1-rc.2`，`schemastery` peer 接受宿主的 `3.18.5`。这两项与《技术选型与环境说明》的旧版本号不同；若照旧号安装 SSH provider，npm 会报 peer 依赖冲突。
+
 ```sh
 npm install
 npm run build

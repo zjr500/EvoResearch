@@ -22,8 +22,8 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5",
-    "@deepseek-ai/dsh-tools": "0.0.1-rc.1",
-    "@deepseek-ai/schemastery": "^3.19.0"
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.5"
   },
   "dependencies": {
     "better-sqlite3": "^13.2.0",
