@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/evoresearch-hero.png" alt="EvoResearch：AI 自主实验与自进化知识库" width="100%">
+  <img src="assets/evoresearch-hero-v2.png" alt="EvoResearch：AI 自主实验与自进化知识库" width="100%">
 </p>
 
 # EvoResearch
@@ -9,7 +9,7 @@ EvoResearch 是基于 DeepSeek Harness（DSH）的 AI 自主实验与自进化�
 - **AI 自主实验**：定义研究任务，通过 SSH 接入用户自备的 GPU 服务器，由 Agent 检索知识、执行实验并迭代调整，展示实验过程与指标。
 - **自进化知识库**：支持论文导入、自动摘要、语义检索与文献图谱；实验报告自动回流，并为后续实验和 DSH 对话提供带来源的参考。
 
-项目计划采用 10 周增量迭代开发，详见 [项目立项报告（最终版）](docs/项目立项报告_最终版.docx)。
+
 
 ## 插件骨架（第 4 周）
 
@@ -33,3 +33,8 @@ dsh --profile evoresearch-dev --dump-config
 配置输出中应出现 `evoresearch-plugin`。也可安装到现有的 `web` profile，再执行 `dsh web --no-open`；在 DSH 对话中调用 `evoresearch_status`，应返回 `EvoResearch plugin is ready (week 4 skeleton).`。开发时先执行 `npm run build`，再启动 DSH。`npm test` 会检查编译后的插件入口可以注册并调用该功能。
 
 复制 `.env.example` 为本地 `.env` 后可按需调整数据库路径。不要提交 `.env`、SQLite 数据库或 SSH 凭证。实际 SSH 主机的配置由 DSH/OpenSSH 管理。
+项目计划采用 10 周增量迭代开发，详见 [项目立项报告 v3.0](docs/项目立项报告_v3.0_20261118.docx)。
+
+## 系统架构
+
+![EvoResearch 系统架构](assets/evoresearch-architecture.png)
