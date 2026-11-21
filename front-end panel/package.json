@@ -1,0 +1,37 @@
+{
+  "name": "evoresearch-front-end-panel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/host.js",
+    "./client": "./dist/client.js"
+  },
+  "files": [
+    "src/host.js",
+    "dist",
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web"
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": "0.2.1-rc.2"
+  },
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "build:debug": "node scripts/build-client.mjs --debug",
+    "prepack": "npm run build",
+    "test": "node --test checks/*.test.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "react": "^18.3.1"
+  }
+}

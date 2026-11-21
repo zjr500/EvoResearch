@@ -4,6 +4,10 @@ AGENT.md
 agents.md
 agent.md
 
+# Local DSH data, including pre-migration runtime files.
+/.dsh-panel/
+/test/.dsh-test/
+
 # Editable Word files stay local; existing tracked project sources are retained.
 *.doc
 *.docx
