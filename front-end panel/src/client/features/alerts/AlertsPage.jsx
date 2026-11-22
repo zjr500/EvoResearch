@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { alertsApi } from './api.js'
 import { useEventRevision, useMutation, useResource } from '../../shared/hooks.js'
-import { Feedback, ObjectView } from '../../shared/ui.jsx'
+import { Feedback, ObjectView, StatusBadge } from '../../shared/ui.jsx'
 
 export function AlertsPage({ api, taskId, stream }) {
   const rules = useResource((signal) => alertsApi.rules(api, taskId, signal), [api, taskId])
@@ -26,14 +26,14 @@ export function AlertsPage({ api, taskId, stream }) {
   const events = stream.events.filter((event) => event.type === 'alert')
   return <>
     <section className="card">
-      <div className="section-head"><h2>预警规则</h2><button onClick={rules.refresh}>重新读取</button></div>
+      <div className="section-head"><h2>预警规则</h2><button className="quiet" onClick={rules.refresh}>重新读取</button></div>
       <Feedback state={rules} />
       {rules.data && <RulesEditor key={JSON.stringify(rules.data)} api={api} taskId={taskId} initial={rules.data.rules} onSaved={rules.refresh} />}
     </section>
     <section className="card">
       <h2>远程终止</h2>
       <Feedback state={task} />
-      <p>任务状态 <strong>{task.data?.status ?? '等待后端返回'}</strong></p>
+      <p className="task-status">任务状态 <StatusBadge>{task.data?.status ?? '等待后端返回'}</StatusBadge></p>
       <div className="toolbar"><button className="danger" disabled={!task.data || stop.busy || terminal || task.data.status === '终止确认中'} onClick={stopTask}>请求终止实验</button><button onClick={task.refresh}>刷新状态</button></div>
       <Feedback state={stop} />
       {followingStop && !terminal && <p className="muted">正在向后端核对任务状态。</p>}
@@ -91,7 +91,7 @@ function RulesEditor({ api, taskId, initial, onSaved }) {
       <div className="toolbar"><label className="inline"><input type="checkbox" checked={rule.enabled} onChange={(event) => change(index, 'enabled', event.target.checked)} />启用规则</label><button type="button" onClick={() => setRules(rules.filter((_, i) => i !== index))}>移除</button></div>
     </fieldset>)}
     {validation && <p role="alert" className="error">{validation}</p>}
-    <div className="toolbar"><button type="button" disabled={save.busy} onClick={add}>添加规则</button><button type="submit" disabled={save.busy}>保存全部规则</button></div>
+    <div className="toolbar"><button type="button" disabled={save.busy} onClick={add}>添加规则</button><button className="primary" type="submit" disabled={save.busy}>保存全部规则</button></div>
     <Feedback state={save} />
   </form>
 }

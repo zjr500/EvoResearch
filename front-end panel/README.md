@@ -2,82 +2,123 @@
 
 `evo/front-end panel` 是 EvoResearch 的 DSH `0.2.1-rc.2` 前端插件，包名为 `evoresearch-front-end-panel`。知识库、实验过程、指标图表、预警与终止已经接好前端请求。实验提交和知识图谱是预留页面。逐个文件的实现见[前端实现详解](../personal%20docs/前端实现详解.md)。
 
-## 运行
+
+## 运行命令（在 front-end panel 目录执行）
+
+**以下所有命令都在 `evo/front-end panel`（这份 README 所在目录）打开 PowerShell 后执行。** 不确定当前目录时，用 `Get-Location` 检查路径是否以 `front-end panel` 结尾。
+
+需要 Node.js `22.19.0` 或更高版本。首次注册或重新注册还需要 `pnpm`，可用 `pnpm --version` 检查，找不到时先运行 `npm install -g pnpm`。
+
+**按所选场景逐行执行。上一条报错时先停下来。** 如果需要重启 DSH，先在原来的终端按 `Ctrl+C`。启动后打开**本次终端输出的链接**，点 DSH 左侧栏的 EvoResearch；仍显示旧版时按 `Ctrl+F5`。
+
+| 我想做什么 | 完整命令 | 例如 |
+| --- | --- | --- |
+| 第一次使用 | [首次安装](#首次安装) | 刚克隆项目，还没注册面板 |
+| 直接打开或重启 | [日常启动与停止](#日常启动与停止) | 昨天已安装，今天继续用；或只改了宿主代码 |
+| 改完前端，或退出调试版 | [重新构建普通版](#重新构建普通版) | 改了按钮样式，想看真实接口效果 |
+| 更新依赖 | [重新安装依赖](#重新安装依赖) | 拉取后发现锁文件变了 |
+| 重新绑定 DSH 插件 | [重新注册面板](#重新注册面板) | 移动了目录、改了插件声明，或侧栏找不到 EvoResearch |
+| 只检查，不启动 | [只运行测试](#只运行测试) | 只改了 `checks/` 下的断言 |
+| 不等后端，直接看样例 | [构建并启动调试版](#构建并启动调试版) | 看任务 21 的指标曲线 |
 
 ### 首次安装
 
-在本文件所在的 `evo/front-end panel` 目录打开 PowerShell。Node.js 使用 `22.19.0` 或更新版本。DSH 的插件管理还需要能从终端调用 `pnpm`；先用 `pnpm --version` 检查，找不到命令时执行 `npm install -g pnpm`，再检查版本。
+刚克隆代码、还没在这份 DSH 配置中注册面板时，用下面这组。插件注册一次即可。
 
-首次使用这套本地 DSH 配置时执行：
+```powershell
+$env:DSH_HOME = Join-Path (Resolve-Path -LiteralPath '..').Path '.dsh-panel'
+npm ci
+npm run build
+npx --yes --package=@deepseek-ai/dsh@0.2.1-rc.2 dsh plugin --profile web add .
+npx --yes --package=@deepseek-ai/dsh@0.2.1-rc.2 dsh --profile web --no-open --port 3080
+```
+
+### 日常启动与停止
+
+昨天已经构建并注册过，今天只是打开面板；或者只改了 `src/host.js`，用下面两行沿用上次构建。DSH 运行时终端会保持打开，按 `Ctrl+C` 停止。
+
+```powershell
+$env:DSH_HOME = Join-Path (Resolve-Path -LiteralPath '..').Path '.dsh-panel'
+npx --yes --package=@deepseek-ai/dsh@0.2.1-rc.2 dsh --profile web --no-open --port 3080
+```
+
+### 重新构建普通版
+
+例如改了 `src/client/styles.js`、前端构建脚本，或要从调试版切回普通版。先停 DSH，再执行：
+
+```powershell
+$env:DSH_HOME = Join-Path (Resolve-Path -LiteralPath '..').Path '.dsh-panel'
+npm run build
+npm test
+npx --yes --package=@deepseek-ai/dsh@0.2.1-rc.2 dsh --profile web --no-open --port 3080
+```
+
+### 重新安装依赖
+
+例如 `package-lock.json` 更新了，或本地没有 `node_modules`。如果插件声明也变了，改用[首次安装](#首次安装)整组命令，一次完成依赖安装和注册。仅依赖有变时，先停 DSH，再执行：
 
 ```powershell
 $env:DSH_HOME = Join-Path (Resolve-Path -LiteralPath '..').Path '.dsh-panel'
 npm ci
 npm run build
 npm test
+npx --yes --package=@deepseek-ai/dsh@0.2.1-rc.2 dsh --profile web --no-open --port 3080
+```
+
+### 重新注册面板
+
+例如移动了面板目录、改了 `cordis.patch.yml` 或插件入口，或者 DSH 侧栏找不到 EvoResearch。先停 DSH，再执行：
+
+```powershell
+$env:DSH_HOME = Join-Path (Resolve-Path -LiteralPath '..').Path '.dsh-panel'
+npm run build
 npx --yes --package=@deepseek-ai/dsh@0.2.1-rc.2 dsh plugin --profile web add .
 npx --yes --package=@deepseek-ai/dsh@0.2.1-rc.2 dsh --profile web --no-open --port 3080
 ```
 
-`npm ci` 按锁文件安装开发依赖；`npm run build` 将前端源码打包到 `dist/client.js`；`npm test` 执行检查，不负责构建；`dsh plugin ... add .` 将当前目录的插件注册到指定的 DSH 配置；最后一条命令启动 Web 服务。首次 `npx` 可能下载 DSH 及依赖，之后通常复用 npm 缓存。
+只有改了包名才需要移除旧注册：先确认旧包名，在 `add .` 前运行 `npx --yes --package=@deepseek-ai/dsh@0.2.1-rc.2 dsh plugin --profile web remove evoresearch-front-end-panel`（如果旧包名不同，换成实际名字）。
 
-插件在同一 `DSH_HOME`、同一 `web` profile 中只需注册一次，不必每次启动都执行整组命令。打开终端输出的启动链接，在侧栏选择 EvoResearch。「接口设置」在页面导航下方，旁边的「外观」可选跟随 DSH、浅色或夜间。默认跟随 DSH，单独选择的外观保存在当前浏览器。
+### 只运行测试
 
-### 日常启动与停止
+例如只改了测试文件，或想在提交前检查。无需重启 DSH。已有要检查的构建产物时，只运行 `npm test`；如果要从头检查普通版，运行下面两行：
 
-没有修改代码、依赖或插件配置时，只需在 `front-end panel` 目录执行：
+```powershell
+npm run build
+npm test
+```
+
+### 构建并启动调试版
+
+例如后端没启动，想看两条样例知识和任务 21。首次使用先完成[首次安装](#首次安装)。先停 DSH，再执行：
 
 ```powershell
 $env:DSH_HOME = Join-Path (Resolve-Path -LiteralPath '..').Path '.dsh-panel'
+npm run build:debug
 npx --yes --package=@deepseek-ai/dsh@0.2.1-rc.2 dsh --profile web --no-open --port 3080
 ```
 
-`DSH_HOME` 是当前 PowerShell 会话的环境变量，新开终端要重新设置，始终使用同一路径。服务运行时该终端会一直被占用，这是正常现象；按 `Ctrl+C` 停止。已经运行时直接打开原启动链接即可，不要在另一个终端重复启动同一端口。
+打开面板后，**在导航下方直接勾选「启用本地调试数据」**，不用打开「接口设置」。看到黄色提示即开启成功。改了前端或样例后，也用这三行重新构建并启动调试版。
 
-下文的“重启”指：在运行 DSH 的终端按 `Ctrl+C`，再执行启动命令；随后刷新浏览器。这个项目没有配置前端源码监听或热更新。
+### 不需要运行命令的情况
 
-### 修改后的操作
-
-| 修改内容或场景 | 需要执行什么 |
+| 情况 | 怎么做 |
 | --- | --- |
-| `src/client/` 下的 JSX、JS、样式、接口适配或调试数据 | `npm run build`，再重启 DSH 并刷新页面；本地调试模式使用 `npm run build:debug` |
-| `scripts/build-client.mjs` 的打包逻辑 | 重新构建，再重启并刷新 |
-| `src/host.js` 的宿主逻辑 | 只需重启 DSH；没有前端改动时不用 build |
-| `cordis.patch.yml`，或 `package.json` 中的插件名称、入口、`exports`、DSH 元数据 | 停止 DSH，重新执行 `dsh plugin --profile web add .`，再启动；影响前端打包或入口时也要重新 build。更改包名时还需移除旧名称的注册 |
-| 拉取代码后 `package-lock.json` 或依赖声明发生变化，或缺少 `node_modules` | `npm ci`，再构建、测试、重启并刷新 |
-| 拉取代码后只有前端源码发生变化 | 构建、测试、重启并刷新，无需重复 `npm ci` 或注册插件 |
-| 切换正式构建与本地调试构建 | 分别执行 `npm run build` 或 `npm run build:debug`，再重启并刷新；二者覆盖同一个构建产物 |
-| 只修改 README、接口说明等文档 | 无需构建或重启 |
-| 只修改 `checks/` 下的测试 | 执行 `npm test`；没有运行代码改动时无需构建或重启 |
-| 在页面中修改接口设置、外观或本地调试开关 | 页面内生效，无需构建、注册或重启；调试开关需使用调试构建 |
-| 只修改业务后端或后端数据 | 无需重建这个前端包；后端代码按所属服务的方式重启。同宿主加载的后端模块改动需重启 DSH，独立服务则重启该服务；数据变化通常只需重新查询或刷新页面 |
-| 插件目录移动、换了 `DSH_HOME` / profile，或注册记录丢失 | 在新目录或新配置中重新注册，再启动；已有构建产物且源码未变时无需重新 build |
-
-普通代码迭代建议按“停止 DSH → 构建（前端有改动时）→ `npm test` → 启动 → 刷新页面”的顺序操作。本地注册使用目录链接，因此同一路径下修改源码后通常不必再次 `plugin add`。构建后统一重启并刷新，可以避免宿主加载状态或浏览器缓存仍保留旧版；若仍看到旧内容，尝试 `Ctrl+F5` 强制刷新。不要直接修改 `dist/client.js`，它会被下次构建覆盖。
+| 只改 README、接口说明等文档 | 保存即可。 |
+| 切换外观、调整接口前缀、开关样例 | 在面板上直接操作。 |
+| 后端只有数据变了 | 重新查询或刷新；独立后端改了代码时，按该服务自己的说明重启。 |
 
 ### 注册警告与配置目录
 
-重复执行注册命令时，可能看到：
-
-```text
-[WARN] Replaced "evoresearch-front-end-panel" ("link:D:/.../front-end panel") with "D:\...\front-end panel" from a different source.
-Lockfile is up to date, resolution step is skipped
-Done in ... using pnpm ...
-```
-
-这表示插件管理器用这次提供的来源替换了原有的同名插件来源记录。上例中的 `link:D:/...` 和 `D:\...` 指向同一本地目录，只是来源表示方式不同，并不代表源码被覆盖。后面的 `Done` 表示依赖安装步骤完成，这个警告本身不是安装失败。如果警告中的两个实际目录不同，应确认新目录才是想加载的版本。`Lockfile is up to date` 表示锁文件无需重新解析依赖，也不是错误。
-
-上面的 `DSH_HOME` 指向上一级的 `evo/.dsh-panel`，这个目录保存本地会话和宿主设置。如果误在面板目录里生成了另一个 `.dsh-panel`，先停止使用它的 DSH，再按上面的路径启动。确认能打开原有会话，并且不再需要误建目录里的新会话或设置后，可以只删除 `front-end panel/.dsh-panel`。
-
-默认接口前缀为 DSH 当前页面下的 `evoresearch/api/`。可以在「接口设置」修改为本机 DSH 的其他同源前缀。业务后端应在同一个 DSH Web 服务中注册这些路由并检查宿主身份，具体方法和响应结构见两份接口说明。
-
-当前 Host 入口只用来安装客户端模块。业务路由由知识库、实验执行及预警服务提供。只安装此包时，数据请求会显示接口未接入。
+- `DSH_HOME` 设置为上一级的 `evo/.dsh-panel`，用来保存 DSH 会话和设置。别把目录设到面板里面。
+- 注册时若看到 `Replaced … from a different source`，确认新旧路径是否指向同一个 `front-end panel`。同一路径只是写法不同时，注册成功后可继续。
+- 真实接口默认前缀为 `evoresearch/api/`，可在「接口设置」中修改。团队后端未接入时，普通版可能显示「接口尚未接入」。
 
 ## 个人调试
 
-从 `front-end panel` 运行 `npm run build:debug`，重新启动 DSH 并刷新页面。打开「接口设置」，勾选「启用本地调试数据」。知识库里有两条样例；在实验过程、指标图表或预警页选编号 21，可以看轮次、事件、曲线、候选和预警规则。编辑、删除、保存规则和终止都只改变当前页面内存。退出调试模式或刷新后恢复初始样例，模式默认关闭。
+进入 **DSH 左侧栏 → EvoResearch → 导航下方的「启用本地调试数据」**。开关只在调试版中出现；如果这里只显示「真实接口模式」，请按[构建并启动调试版](#构建并启动调试版)重新启动并刷新。
 
-调试构建与正式构建都写入 `dist/client.js`。想恢复正式版本就执行 `npm run build` 再重启并刷新。普通构建不会把样例编入，打包前也会自动重建普通版；本地调试构建只在个人 DSH 环境里使用。
+- 「知识库」可以点开两条样例；「实验过程」「指标图表」「预警与终止」可以选任务 **21（比较学习率对验证损失的影响）**。在指标页内往下滚动可看候选方案和认证进度。
+- 取消勾选就切回真实接口。调试操作只改变本地样例；刷新后会重置样例和开关。
 
 ## 代码位置
 
@@ -117,6 +158,8 @@ F13 当前完成规则读取与保存表单、已记录预警的展示、终止�
 
 ## 本地验证
 
-普通构建可用 `npm run build; npm test` 检查。调试数据与真实服务分开，调试写入成功只验证界面交互，业务保存、删除、实时推送和远程终止仍需接入团队后端联调。
+测试命令见[只运行测试](#只运行测试)。调试数据与真实服务分开，调试写入成功只验证界面交互，业务保存、删除、实时推送和远程终止仍需接入团队后端联调。
 
 初始框架在 DSH Web 0.2.1-rc.2 和 Edge 中验证了六个导航入口、浅色和夜间模式、跟随宿主色彩、430 像素窗口的设置入口，以及知识条目、指标曲线和模拟终止。开启本地调试后未发出业务请求。
+
+调试版的滚轮与开关已在 DSH + Edge 中验证：1150 和 430 像素宽时均可滚动，窄窗口可到达指标页底部。

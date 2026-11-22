@@ -13,7 +13,9 @@ export function AppSettings({ prefix, onPrefix, theme, onTheme, debug, onDebug }
   }
   return <div className="workspace-tools">
     <div className="settings-row">
-      <span className="source-pill"><i aria-hidden="true" />{debug ? '本地调试数据' : '真实接口模式'}</span>
+      {onDebug
+        ? <label className="inline debug-control" data-tone={debug ? 'warning' : 'neutral'}><input type="checkbox" checked={debug} onChange={(event) => onDebug(event.target.checked)} />启用本地调试数据</label>
+        : <span className="source-pill"><i aria-hidden="true" />真实接口模式</span>}
       <div className="settings-actions">
         <label className="theme-control">外观 <select aria-label="面板外观" value={theme} onChange={(event) => onTheme(event.target.value)}>
           <option value="dsh">跟随 DSH</option><option value="light">浅色</option><option value="dark">夜间</option>
@@ -29,8 +31,7 @@ export function AppSettings({ prefix, onPrefix, theme, onTheme, debug, onDebug }
         <button className="primary" type="submit">应用</button>
       </form>
       {error && <p role="alert" className="error">{error}</p>}
-      {onDebug && <label className="inline debug-control"><input type="checkbox" checked={debug} onChange={(event) => onDebug(event.target.checked)} />启用本地调试数据</label>}
     </div>
-    {debug && <p className="debug-banner" role="status">正在使用本地样例。所有修改只在内存中，关闭调试或刷新后恢复。</p>}
+    {debug && <p className="debug-banner" role="status"><PanelIcon name="info" /><span>正在使用本地样例。所有修改只在内存中，关闭调试或刷新后恢复。</span></p>}
   </div>
 }

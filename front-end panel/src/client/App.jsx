@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { apiBase, createApi } from './shared/api.js'
 import { TaskSelector } from './shared/TaskSelector.jsx'
 import { useEvents } from './shared/useEvents.js'
+import { EmptyState } from './shared/ui.jsx'
 import { KnowledgePage } from './features/knowledge/KnowledgePage.jsx'
 import { ProcessPage } from './features/process/ProcessPage.jsx'
 import { MetricsPage } from './features/metrics/MetricsPage.jsx'
@@ -48,7 +49,7 @@ export function App() {
     setTheme(value)
     try { localStorage.setItem(themeKey, value) } catch {}
   }
-  return <div className="evo-app" data-theme={theme}>
+  return <div className="evo-app" role="region" aria-label="EvoResearch 研究工作台" tabIndex={0} data-theme={theme}>
     <div className="app-inner">
       <header className="app-header">
         <p className="product"><span className="brand-icon"><PanelIcon name="brand" /></span>EvoResearch <span className="brand-caption">研究工作台</span></p>
@@ -56,7 +57,7 @@ export function App() {
         <p className="panel-description">{panel.description}</p>
       </header>
       <nav className="tabs main-tabs" aria-label="功能面板">
-        {panels.map(({ id, title }) => <button key={id} aria-current={panel.id === id ? 'page' : undefined} onClick={() => setPanelId(id)}><PanelIcon name={id} />{title}</button>)}
+        {panels.map(({ id, title }) => <button type="button" key={id} aria-current={panel.id === id ? 'page' : undefined} onClick={() => setPanelId(id)}><PanelIcon name={id} /><span>{title}</span></button>)}
       </nav>
       <AppSettings prefix={prefix} onPrefix={applyPrefix} theme={theme} onTheme={changeTheme} debug={debug} onDebug={createDebugApi && setDebug} />
       <Workspace key={debug ? 'local-debug' : base} base={debug ? apiBase(defaultPrefix, document.baseURI) : base} panel={panel} debug={debug} />
@@ -70,8 +71,8 @@ function Workspace({ base, panel: { Page, title, usesTask }, debug }) {
   const stream = useEvents(api, usesTask ? taskId : '')
   return <>
     {usesTask && <TaskSelector api={api} taskId={taskId} onChange={setTaskId} />}
-    {usesTask && !taskId && <section className="card empty">选择实验任务后查看{title}。</section>}
-    {usesTask && taskId && <div className="stream-status"><span role="status">{stream.status}</span><button onClick={stream.refresh}>重新连接</button></div>}
+    {usesTask && !taskId && <section className="card"><EmptyState icon="process" title="尚未选择实验" description={`选择实验任务后查看${title}。`} /></section>}
+    {usesTask && taskId && <div className="stream-status" data-tone={stream.error ? 'warning' : 'info'}><span role="status"><PanelIcon name="activity" />{stream.status}</span><button className="quiet" onClick={stream.refresh}>重新连接</button></div>}
     {(!usesTask || taskId) && <Page key={usesTask ? taskId : undefined} api={api} taskId={taskId} stream={stream} />}
   </>
 }

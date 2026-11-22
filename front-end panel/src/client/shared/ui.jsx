@@ -1,9 +1,27 @@
+import { PanelIcon } from '../shell/PanelIcon.jsx'
+
 export function Feedback({ state }) {
-  if (state.loading || state.busy) return <p role="status" className="message">正在加载…</p>
-  if (state.error) return <div role="alert" className="error message">{state.error} {state.refresh && <button onClick={state.refresh}>重试</button>}</div>
+  if (state.loading || state.busy) return <p role="status" className="message loading"><PanelIcon name="activity" />正在加载…</p>
+  if (state.error) return <div role="alert" className="error message"><span><PanelIcon name="alerts" />{state.error}</span>{state.refresh && <button type="button" onClick={state.refresh}>重试</button>}</div>
   return state.message ? <p role="status" className="message">{state.message}</p> : null
 }
 
+export function EmptyState({ icon, title, description }) {
+  return <div className="empty-state">
+    <span className="empty-icon"><PanelIcon name={icon} /></span>
+    <p><strong>{title}</strong></p>
+    {description && <p>{description}</p>}
+  </div>
+}
+
+export function StatusBadge({ children }) {
+  if (!children) return <Value>{children}</Value>
+  const tone = ['成功', '已完成', '已认证', '认证通过'].includes(children) ? 'success'
+    : ['运行中', '调试中', '认证中'].includes(children) ? 'info'
+    : ['待启动', '待认证', '终止确认中'].includes(children) ? 'warning'
+    : ['失败', '启动失败', '认证失败'].includes(children) ? 'danger' : 'neutral'
+  return <span className="status-badge" data-tone={tone}>{children}</span>
+}
 export function Pager({ cursors, next, onChange }) {
   if (cursors.length === 1 && !next) return null
   return <nav className="pager" aria-label="分页">

@@ -7,6 +7,10 @@ const paths = {
   alerts: 'M12 3 2.5 20h19L12 3Zm0 6v4m0 3h.01',
   graph: 'M10 11 7 8m7 3 3-3m-5 6v3M12 10a2 2 0 1 0 0 4 2 2 0 1 0 0-4ZM6 4a2 2 0 1 0 0 4 2 2 0 1 0 0-4Zm12 0a2 2 0 1 0 0 4 2 2 0 1 0 0-4Zm-6 13a2 2 0 1 0 0 4 2 2 0 1 0 0-4Z',
   settings: 'M4 7h16M4 17h16M9 4v6m6 4v6',
+  activity: 'M3 12h4l3-6 4 12 3-6h4',
+  search: 'M15.5 15.5 21 21M17 10.5a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z',
+  info: 'M12 11v5m0-8h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z',
+  chevron: 'm9 5 7 7-7 7',
 }
 
 export function PanelIcon({ name }) {
