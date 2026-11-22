@@ -38,3 +38,7 @@ dsh --profile evoresearch-dev --dump-config
 ## 系统架构
 
 ![EvoResearch 系统架构](assets/evoresearch-architecture.png)
+
+## 第四周 F1/F2
+
+运行、接口示例与验证边界见 [F1/F2运行与验收记录](docs/开发工作安排/F1-F2运行与验收记录.md)，新增约定见 [接口契约补充建议](docs/开发工作安排/F1-F2接口契约补充建议.md)。业务REST需要DSH Web宿主的认证会话；第五周语义检索尚未实现。

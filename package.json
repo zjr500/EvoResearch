@@ -12,13 +12,25 @@
       "default": "./dist/index.js"
     }
   },
-  "files": ["dist", "cordis.patch.yml", "README.md"],
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
-  "engines": { "node": ">=22.19.0", "dsh": ">=0.2.1-rc.2 <0.3.0" },
+  "files": [
+    "dist",
+    "cordis.patch.yml",
+    "README.md",
+    "migrations"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.1-rc.2 <0.3.0"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build && node --test test/*.test.mjs"
+    "test": "npm run build && node --import tsx --test test/*.test.mjs test/*.test.ts"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5",
@@ -27,10 +39,13 @@
   },
   "dependencies": {
     "better-sqlite3": "^13.2.0",
+    "pdf-parse": "^2.4.5",
     "sqlite-vec": "^0.1.9"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.0"
   }
 }

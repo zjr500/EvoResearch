@@ -7,3 +7,12 @@ dist/
 *.sqlite-*
 *.log
 .DS_Store
+
+# Local-only review artifacts and credentials
+/tatus
+/test-data/sample.pdf
+llm-api_key.txt
+.env.*
+!.env.example
+!.env.template
+!.env.sample
