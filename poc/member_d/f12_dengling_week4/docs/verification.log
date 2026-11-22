@@ -1,0 +1,106 @@
+
+> dsh-f12-knowledge-citation@0.1.0 check
+> npm run test && npm run demo
+
+
+> dsh-f12-knowledge-citation@0.1.0 test
+> npm run build && node --test tests/*.test.mjs
+
+
+> dsh-f12-knowledge-citation@0.1.0 build
+> tsc -p tsconfig.json
+
+TAP version 13
+# Subtest: DSH 模拟宿主：工具可注册、执行与卸载
+ok 1 - DSH 模拟宿主：工具可注册、执行与卸载
+  ---
+  duration_ms: 2.772563
+  type: 'test'
+  ...
+# Subtest: mock：能从 RAG 问题检索到可引用条目
+ok 2 - mock：能从 RAG 问题检索到可引用条目
+  ---
+  duration_ms: 2.293494
+  type: 'test'
+  ...
+# Subtest: 选中后：回答引用 [1] 并给出确切来源
+ok 3 - 选中后：回答引用 [1] 并给出确切来源
+  ---
+  duration_ms: 0.434202
+  type: 'test'
+  ...
+# Subtest: 拒绝杜撰 ID
+ok 4 - 拒绝杜撰 ID
+  ---
+  duration_ms: 0.652269
+  type: 'test'
+  ...
+# Subtest: 无匹配内容：不编造来源
+ok 5 - 无匹配内容：不编造来源
+  ---
+  duration_ms: 0.265739
+  type: 'test'
+  ...
+# Subtest: 输入约束：空问题、topK 越界均拒绝
+ok 6 - 输入约束：空问题、topK 越界均拒绝
+  ---
+  duration_ms: 0.162154
+  type: 'test'
+  ...
+# Subtest: 来源 URL 约束：拒绝 javascript 协议
+ok 7 - 来源 URL 约束：拒绝 javascript 协议
+  ---
+  duration_ms: 0.195143
+  type: 'test'
+  ...
+# Subtest: HTTP 适配层：POST body 与响应字段校验
+ok 8 - HTTP 适配层：POST body 与响应字段校验
+  ---
+  duration_ms: 1.486241
+  type: 'test'
+  ...
+# Subtest: HTTP 适配层：错误响应提示清楚
+ok 9 - HTTP 适配层：错误响应提示清楚
+  ---
+  duration_ms: 0.191498
+  type: 'test'
+  ...
+# Subtest: 检索结果去重、分数排序
+ok 10 - 检索结果去重、分数排序
+  ---
+  duration_ms: 0.407392
+  type: 'test'
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 106.025039
+
+> dsh-f12-knowledge-citation@0.1.0 demo
+> npm run build && node scripts/demo.mjs
+
+
+> dsh-f12-knowledge-citation@0.1.0 build
+> tsc -p tsconfig.json
+
+[第4周 F12] 离线演示，未接入真实知识库/DSH
+
+=== 工具 1：kb_search_sources ===
+【模拟检索结果（非真实知识库）】问题：RAG如何减少幻觉？
+- ID=kb-101｜RAG：检索增强生成｜匹配分=0.592｜摘要：RAG 在生成回答前检索外部知识，将检索到的文档片段作为证据供语言模型参考，有助于减少缺乏依据的回答，但不能保证完全消除幻觉。
+
+如果需要给出带来源的回答，请从以上 ID 选 1~5 个，调用 kb_cite_sources({query, ids})。
+
+=== 工具 2：kb_cite_sources ===
+【带来源的回答｜模拟演示】
+1. RAG 在生成回答前检索外部知识，将检索到的文档片段作为证据供语言模型参考，有助于减少缺乏依据的回答，但不能保证完全消除幻觉。 [1]
+
+【参考来源】
+[1] Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks，https://arxiv.org/abs/2005.11401
+
+说明：以上为检索片段整理；模型若进一步推论，须与有来源的事实区分。

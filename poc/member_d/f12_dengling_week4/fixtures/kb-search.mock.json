@@ -1,0 +1,34 @@
+{
+  "query": "模拟数据默认查询（运行时会替换成用户 query）",
+  "total": 4,
+  "items": [
+    {
+      "id": "kb-101",
+      "title": "RAG：检索增强生成",
+      "snippet": "RAG 在生成回答前检索外部知识，将检索到的文档片段作为证据供语言模型参考，有助于减少缺乏依据的回答，但不能保证完全消除幻觉。",
+      "score": 0.96,
+      "source": {"type": "paper", "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks", "url": "https://arxiv.org/abs/2005.11401"}
+    },
+    {
+      "id": "kb-102",
+      "title": "知识库回答中的来源引用",
+      "snippet": "检索结果应保留条目 ID、摘要和来源信息；回答正文使用 [1] 等编号关联参考来源，并且不得引用检索结果之外的文档。",
+      "score": 0.92,
+      "source": {"type": "internal", "title": "F12 第四周演示说明（模拟条目）", "url": null}
+    },
+    {
+      "id": "kb-103",
+      "title": "LoRA 参数高效微调",
+      "snippet": "LoRA 冻结预训练权重，并在权重更新中引入两个可训练的低秩矩阵，以较少的训练参数适配下游任务。",
+      "score": 0.94,
+      "source": {"type": "paper", "title": "LoRA: Low-Rank Adaptation of Large Language Models", "url": "https://arxiv.org/abs/2106.09685"}
+    },
+    {
+      "id": "kb-104",
+      "title": "Transformer 注意力机制",
+      "snippet": "Transformer 使用自注意力机制建模序列元素之间的关系，注意力通常先根据 Query 和 Key 的相似度计算权重，再对 Value 加权求和。",
+      "score": 0.91,
+      "source": {"type": "paper", "title": "Attention Is All You Need", "url": "https://arxiv.org/abs/1706.03762"}
+    }
+  ]
+}
