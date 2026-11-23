@@ -6,7 +6,7 @@ import Database from 'better-sqlite3';
 import { migrateKnowledge } from './database.js';
 import { Operations } from './operations.js';
 import { knowledgeApi } from './api.js';
-import { dshSummaryModel,type DshLlm } from './summary-model.js';
+import { dshSummaryModel,type DshLlm,type DefaultModel } from './summary-model.js';
 interface Host {
  connection:{admit(request:{headers:IncomingMessage['headers']}):{rejection:401|403}|{peer:{principal:{kind:string}}}};
  webServer:{register(route:{kind:'prefix';path:string;handler(req:IncomingMessage,res:ServerResponse):Promise<void>}):()=>void};
@@ -19,7 +19,11 @@ export function installKnowledge(ctx:Context) {
   mkdirSync(dirname(databasePath),{recursive:true});
   const db=new Database(databasePath); migrateKnowledge(db);
   const operations=new Operations(db);
-  const api=knowledgeApi(db,operations,resolve(dirname(databasePath),'papers'),dshSummaryModel(host.llm,process.env.EVORESEARCH_SUMMARY_PROVIDER??'',process.env.EVORESEARCH_SUMMARY_MODEL??''));
+  const api=knowledgeApi(db,operations,resolve(dirname(databasePath),'papers'),dshSummaryModel(host.llm,process.env.EVORESEARCH_SUMMARY_PROVIDER??'',process.env.EVORESEARCH_SUMMARY_MODEL??'',{currentSelection(){
+   const defaults=scope.get('agentDefaultModel') as DefaultModel|undefined;
+   if(!defaults) return {provider:'',model:''};
+   return defaults.currentSelection();
+  }}));
   const handler=async(req:IncomingMessage,res:ServerResponse)=>{
    const admission=host.connection.admit(req);
    if('rejection' in admission || admission.peer.principal.kind!=='owner') {res.writeHead('rejection' in admission?admission.rejection:403);res.end();return;}

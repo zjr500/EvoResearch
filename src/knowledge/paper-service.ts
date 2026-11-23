@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { readPdf, extractAbstract } from './paper-import.js';
 import { savePaper, type PaperRecord } from './paper-repository.js';
-import { validateSummary, type SummaryModel } from './summary-model.js';
+import { validateSummary, SummarySelectionError, type SummaryModel } from './summary-model.js';
 
 export class KnowledgeError extends Error {
  constructor(public code:number,message:string,public data:unknown=null) { super(message); }
@@ -59,7 +59,10 @@ export async function summarizePaper(db:Database.Database,owner:number,id:number
  if(paper.status!=='已入库') throw new KnowledgeError(4009,'Confirm paper metadata first');
  const text=paper.full_text?.trim() || paper.abstract?.trim();
  if(!text) throw new KnowledgeError(4009,'No paper text or manually supplied abstract');
- const content=validateSummary(await model.generate(text,signal));
+ const content=validateSummary(await model.generate(text,signal).catch(error=>{
+  if(error instanceof SummarySelectionError) throw new KnowledgeError(4009,error.message);
+  throw error;
+ }));
  signal.throwIfAborted();
  return db.transaction(()=>{
   const current=paperFor(db,owner,id);

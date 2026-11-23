@@ -16,3 +16,9 @@ llm-api_key.txt
 !.env.example
 !.env.template
 !.env.sample
+# DSH local credential stores (never commit)
+.credentials.yaml
+.credentials.yml
+# SQLite runtime files; test fixtures are generated in temporary directories
+*.sqlite3
+*.sqlite3-*

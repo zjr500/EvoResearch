@@ -42,3 +42,6 @@ dsh --profile evoresearch-dev --dump-config
 ## 第四周 F1/F2
 
 运行、接口示例与验证边界见 [F1/F2运行与验收记录](docs/开发工作安排/F1-F2运行与验收记录.md)，新增约定见 [接口契约补充建议](docs/开发工作安排/F1-F2接口契约补充建议.md)。业务REST需要DSH Web宿主的认证会话；第五周语义检索尚未实现。
+
+
+F2 默认复用 DSH 的 `agentDefaultModel.currentSelection()` 和 `ctx.llm.stream()`，不读取或管理 API Key。`.env` 中的 `EVORESEARCH_SUMMARY_PROVIDER` / `EVORESEARCH_SUMMARY_MODEL` 留空即可；同时填写为显式覆盖，只填写一个会报错。每次摘要执行开始时固定模型与 reasoningEffort，后续任务读取最新 DSH 默认值。配置步骤见 [F2默认模型继承验证](docs/开发工作安排/F2默认模型继承验证.md)。
