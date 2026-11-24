@@ -1,9 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { IncomingMessage,ServerResponse } from 'node:http';
-import { mkdirSync } from 'node:fs';
-import { dirname,resolve } from 'node:path';
-import Database from 'better-sqlite3';
-import { migrateKnowledge } from './database.js';
+import type { SharedDatabase } from '../infrastructure/database.js';
 import { Operations } from './operations.js';
 import { knowledgeApi } from './api.js';
 import { dshSummaryModel,type DshLlm,type DefaultModel } from './summary-model.js';
@@ -12,14 +9,11 @@ interface Host {
  webServer:{register(route:{kind:'prefix';path:string;handler(req:IncomingMessage,res:ServerResponse):Promise<void>}):()=>void};
  llm:DshLlm;
 }
-export function installKnowledge(ctx:Context) {
- ctx.inject(['connection','webServer','llm'], scope=>{
+export function installKnowledge(scope:Context, store:SharedDatabase) {
   const host=scope as unknown as Host;
-  const databasePath=resolve(process.env.EVORESEARCH_DB_PATH??'data/evoresearch.sqlite');
-  mkdirSync(dirname(databasePath),{recursive:true});
-  const db=new Database(databasePath); migrateKnowledge(db);
+  const { db, papersPath } = store;
   const operations=new Operations(db);
-  const api=knowledgeApi(db,operations,resolve(dirname(databasePath),'papers'),dshSummaryModel(host.llm,process.env.EVORESEARCH_SUMMARY_PROVIDER??'',process.env.EVORESEARCH_SUMMARY_MODEL??'',{currentSelection(){
+  const api=knowledgeApi(db,operations,papersPath,dshSummaryModel(host.llm,process.env.EVORESEARCH_SUMMARY_PROVIDER??'',process.env.EVORESEARCH_SUMMARY_MODEL??'',{currentSelection(){
    const defaults=scope.get('agentDefaultModel') as DefaultModel|undefined;
    if(!defaults) return {provider:'',model:''};
    return defaults.currentSelection();
@@ -37,6 +31,5 @@ export function installKnowledge(ctx:Context) {
    }catch {if(!res.headersSent)res.writeHead(500);res.end();}
   };
   const disposers=['/papers','/kb'].map(path=>host.webServer.register({kind:'prefix',path,handler}));
-  scope.effect(()=>async()=>{disposers.forEach(fn=>fn());await operations.drain();db.close();});
- });
+  return async()=>{disposers.forEach(fn=>fn());await operations.drain();};
 }

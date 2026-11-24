@@ -4,6 +4,8 @@
 
 # EvoResearch
 
+当前集成分支的安装、共享数据库及验证边界见 [第一批共享基础设施整合记录](docs/开发工作安排/共享基础设施第一批整合.md)。本批暂停 SSH；F7 源码保留但不加载。前端与 F12 已纳入组件构建和回归，尚未接入公共运行入口。
+
 EvoResearch 是基于 DeepSeek Harness（DSH）的 AI 自主实验与自进化知识库插件，面向机器学习与人工智能科研，连接“读文献—做实验—沉淀结论—复用知识”的流程。
 
 - **AI 自主实验**：定义研究任务，通过 SSH 接入用户自备的 GPU 服务器，由 Agent 检索知识、执行实验并迭代调整，展示实验过程与指标。
@@ -18,7 +20,9 @@ EvoResearch 是基于 DeepSeek Harness（DSH）的 AI 自主实验与自进化�
 依赖以实际 DSH 0.2.1-rc.2 宿主为准：`dsh-tools` peer 使用 `0.2.1-rc.2`，`schemastery` peer 接受宿主的 `3.18.5`。这两项与《技术选型与环境说明》的旧版本号不同；若照旧号安装 SSH provider，npm 会报 peer 依赖冲突。
 
 ```sh
-npm install
+npm ci
+npm ci --prefix modules/frontend
+npm run check
 npm run build
 npm test
 ```
@@ -32,7 +36,7 @@ dsh --profile evoresearch-dev --dump-config
 
 配置输出中应出现 `evoresearch-plugin`。也可安装到现有的 `web` profile，再执行 `dsh web --no-open`；在 DSH 对话中调用 `evoresearch_status`，应返回 `EvoResearch plugin is ready (week 4 skeleton).`。开发时先执行 `npm run build`，再启动 DSH。`npm test` 会检查编译后的插件入口可以注册并调用该功能。
 
-复制 `.env.example` 为本地 `.env` 后可按需调整数据库路径。不要提交 `.env`、SQLite 数据库或 SSH 凭证。实际 SSH 主机的配置由 DSH/OpenSSH 管理。
+参照 `.env.example` 将数据库路径设置到启动进程的环境变量；本项目不会自动加载 `.env`。不要提交 `.env`、SQLite 数据库或凭证。当前集成入口不启用 SSH。
 项目计划采用 10 周增量迭代开发，详见 [项目立项报告 v3.0](docs/项目立项报告_v3.0_20261118.docx)。
 
 ## 系统架构
