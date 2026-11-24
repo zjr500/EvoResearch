@@ -1,3 +1,4 @@
+import {migrateOperations} from './operation-migration.js';
 import type Database from 'better-sqlite3';
 import { migrateKnowledge } from '../knowledge/database.js';
 
@@ -14,8 +15,9 @@ export function migrateDatabase(db: Database.Database) {
       applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY(module, version)
     )`);
-    if (db.prepare("SELECT 1 FROM evoresearch_migrations WHERE module <> 'knowledge' OR version <> 2").get())
+    if (db.prepare("SELECT 1 FROM evoresearch_migrations WHERE NOT ((module = 'knowledge' AND version = 2) OR (module = 'operations' AND version = 1))").get())
       throw new Error('Database contains unrecognized migrations; refusing downgrade');
     db.prepare("INSERT OR IGNORE INTO evoresearch_migrations(module,version) VALUES('knowledge',2)").run();
-  })();
+    migrateOperations(db);
+  }).immediate();
 }

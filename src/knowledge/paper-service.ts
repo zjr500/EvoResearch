@@ -6,14 +6,9 @@ import { readPdf, extractAbstract } from './paper-import.js';
 import { savePaper, type PaperRecord } from './paper-repository.js';
 import { validateSummary, SummarySelectionError, type SummaryModel } from './summary-model.js';
 
-export class KnowledgeError extends Error {
- constructor(public code:number,message:string,public data:unknown=null) { super(message); }
-}
+import { AppError as KnowledgeError, ownerId } from '../infrastructure/errors.js';
+export { AppError as KnowledgeError, ownerId } from '../infrastructure/errors.js';
 export interface StoredPaper extends PaperRecord { full_text:string|null; parse_error:string|null }
-export function ownerId(value:number):number {
- if(!Number.isSafeInteger(value)||value<1) throw new KnowledgeError(4001,'Authenticated owner required');
- return value;
-}
 export function paperFor(db:Database.Database,owner:number,id:number):StoredPaper {
  const paper=db.prepare('SELECT * FROM papers WHERE paper_id=? AND uploader_id=?').get(id,ownerId(owner)) as StoredPaper|undefined;
  if(!paper) throw new KnowledgeError(4004,'Paper not found'); return paper;
