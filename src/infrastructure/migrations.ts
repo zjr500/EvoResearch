@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {migrateOperations} from './operation-migration.js';
 import type Database from 'better-sqlite3';
 import { migrateKnowledge } from '../knowledge/database.js';
@@ -15,9 +16,14 @@ export function migrateDatabase(db: Database.Database) {
       applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY(module, version)
     )`);
-    if (db.prepare("SELECT 1 FROM evoresearch_migrations WHERE NOT ((module = 'knowledge' AND version = 2) OR (module = 'operations' AND version = 1))").get())
+    if (db.prepare("SELECT 1 FROM evoresearch_migrations WHERE NOT ((module = 'knowledge' AND version = 2) OR (module = 'operations' AND version = 1) OR (module = 'local-execution' AND version = 1))").get())
       throw new Error('Database contains unrecognized migrations; refusing downgrade');
     db.prepare("INSERT OR IGNORE INTO evoresearch_migrations(module,version) VALUES('knowledge',2)").run();
     migrateOperations(db);
+    if(!db.prepare("SELECT 1 FROM evoresearch_migrations WHERE module='local-execution' AND version=1").get()) {
+      if(db.prepare("SELECT 1 FROM sqlite_master WHERE name='local_executions'").get())throw new Error('Existing local executions require explicit reconciliation');
+      db.exec(readFileSync(new URL('../../migrations/shared/002_local_executions.sql',import.meta.url),'utf8'));
+      db.prepare("INSERT INTO evoresearch_migrations(module,version) VALUES('local-execution',1)").run();
+    }
   }).immediate();
 }

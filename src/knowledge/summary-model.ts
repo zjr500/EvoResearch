@@ -1,23 +1,8 @@
 export interface Summary { method: string; datasets: string; conclusions: string }
 export interface SummaryModel { generate(text: string, signal: AbortSignal): Promise<unknown> }
-export interface ModelSelection { provider: string; model: string; reasoningEffort?: string }
-export interface DefaultModel { currentSelection(): ModelSelection }
-// Safe, fixed messages only: these may be exposed in operation results.
-export class SummarySelectionError extends Error {}
-export function resolveSummarySelection(provider: string, model: string, defaults?: DefaultModel): Readonly<ModelSelection> {
- provider=provider.trim(); model=model.trim();
- if (Boolean(provider)!==Boolean(model)) throw new SummarySelectionError('Set both EVORESEARCH_SUMMARY_PROVIDER and EVORESEARCH_SUMMARY_MODEL, or leave both empty to inherit DSH');
- if (provider && model) return Object.freeze({provider,model});
- if (!defaults) throw new SummarySelectionError('DSH default model service is unavailable; configure a DSH default model');
- const selected=defaults.currentSelection();
- if (!selected || typeof selected.provider!=='string' || !selected.provider.trim() || typeof selected.model!=='string' || !selected.model.trim()) throw new SummarySelectionError('DSH default provider/model is incomplete');
- if (selected.reasoningEffort!==undefined && (typeof selected.reasoningEffort!=='string' || !selected.reasoningEffort.trim())) throw new SummarySelectionError('DSH default reasoningEffort is invalid');
- // Effort identifiers are provider-owned. DSH validates supported values; do not hardcode a DeepSeek-only enum.
- return Object.freeze({provider:selected.provider.trim(),model:selected.model.trim(),...(selected.reasoningEffort===undefined?{}:{reasoningEffort:selected.reasoningEffort})});
-}
-export interface DshLlm {
- stream(options: {provider:string;model:string;reasoningEffort?:string;system:string;messages:{role:'user';content:{type:'text';text:string}[]}[];signal:AbortSignal;maxTokens:number}): AsyncIterable<{type:string;text?:string;reason?:string}>;
-}
+import {resolveModelSelection as resolveSummarySelection,type ModelSelection,type DefaultModel,type DshLlm} from '../infrastructure/models.js';
+export {resolveModelSelection as resolveSummarySelection,ModelSelectionError as SummarySelectionError} from '../infrastructure/models.js';
+export type {ModelSelection,DefaultModel,DshLlm} from '../infrastructure/models.js';
 export function dshSummaryModel(llm: DshLlm, provider = '', model = '', defaults?: DefaultModel): SummaryModel {
  return { async generate(text,signal) {
   const selection=resolveSummarySelection(provider,model,defaults);

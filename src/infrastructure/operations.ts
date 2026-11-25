@@ -26,6 +26,11 @@ export class OperationService {
   if(!row)throw new AppError(4004,'Operation not found');
   const {result_json,...publicRow}=row;return {...publicRow,result:result_json?JSON.parse(result_json as string):null};
  }
+ /** Cross-module read, fenced by the same authenticated host owner. */
+ getPublic(owner:number,id:number) {
+  const row=this.db.prepare(`SELECT r.id AS operation_id,r.operation_type,r.status,r.result_ref,p.error_message AS error,r.updated_at FROM operation_records r JOIN operation_payloads p ON p.operation_id=r.id WHERE r.id=? AND p.owner_id=?`).get(id,ownerId(owner));
+  if(!row)throw new AppError(4004,'Operation not found');return row;
+ }
  private mirror(id:number) {
   if(this.scope!=='knowledge')return;
   // Legacy table stays readable with original identifiers; one shared writer owns both stores.
