@@ -17,7 +17,7 @@ EvoResearch 是基于 DeepSeek Harness（DSH）的 AI 自主实验与自进化�
 
 运行环境为 Node.js ≥22.19.0、DSH 0.2.1-rc.2。源码位于 `src/`，TypeScript 编译为 ESM；`cordis.patch.yml` 是 DSH bundle 的加载入口。`migrations/` 用于各模块提交 SQLite 建表脚本。插件数据库由 `better-sqlite3` 管理，`sqlite-vec` 留给后续 F3 检索使用。
 
-依赖以实际 DSH 0.2.1-rc.2 宿主为准：`dsh-tools` peer 使用 `0.2.1-rc.2`，`schemastery` peer 接受宿主的 `3.18.5`。这两项与《技术选型与环境说明》的旧版本号不同；若照旧号安装 SSH provider，npm 会报 peer 依赖冲突。
+依赖以实际 DSH 0.2.1-rc.2 宿主为准：`dsh-tools` peer 使用 `0.2.1-rc.2`，`schemastery` peer 接受宿主的 `3.18.5`。若按旧版本号安装 SSH provider，npm 会报 peer 依赖冲突。
 
 ```sh
 npm ci
@@ -49,3 +49,10 @@ dsh --profile evoresearch-dev --dump-config
 
 
 F2 默认复用 DSH 的 `agentDefaultModel.currentSelection()` 和 `ctx.llm.stream()`，不读取或管理 API Key。`.env` 中的 `EVORESEARCH_SUMMARY_PROVIDER` / `EVORESEARCH_SUMMARY_MODEL` 留空即可；同时填写为显式覆盖，只填写一个会报错。每次摘要执行开始时固定模型与 reasoningEffort，后续任务读取最新 DSH 默认值。配置步骤见 [F2默认模型继承验证](docs/开发工作安排/F2默认模型继承验证.md)。
+
+## UC01 后端（2026-11-25）
+
+当前论文流程为：选择或继承 DSH 模型 → 上传并生成待确认摘要 → 修改/重新生成 → 确认入库。
+旧 F1/F2 文档中的“先确认、后摘要”仅作为历史验收记录保留，不能用于当前 API 调用。
+批量上传采用逐篇 POST 汇总；批量确认、版本冲突、模型配置及旧数据升级规则见
+[UC01 后端实现与验收](docs/开发工作安排/UC01后端实现与验收.md)。本轮未接入前端，未执行付费模型请求；索引/图谱仅写入持久待处理事件。

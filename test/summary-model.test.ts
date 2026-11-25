@@ -42,7 +42,7 @@ test('F2 unavailable DSH model propagates failure without fallback or database s
  const db=new Database(':memory:');let calls=0;
  try {
   migrateKnowledge(db);
-  db.prepare("INSERT INTO papers(title,file_path,uploader_id,content_hash,status,full_text) VALUES('Test','unused',1,?,'已入库','paper text')").run('d'.repeat(64));
+  db.prepare("INSERT INTO papers(title,file_path,uploader_id,content_hash,status,full_text) VALUES('Test','unused',1,?,'待确认','paper text')").run('d'.repeat(64));
   const unavailable=Object.assign(new Error('Model unavailable'),{code:'NO_ADAPTER'});
   const model=dshSummaryModel({async *stream(){calls++;throw unavailable;}},'','',{currentSelection:()=>({provider:'unavailable',model:'missing'})});
   await assert.rejects(summarizePaper(db,1,1,model),e=>e===unavailable);

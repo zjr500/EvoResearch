@@ -25,7 +25,7 @@ test('shared database repeats and reopens without losing paper, entry or operati
   assert.equal((store.db.prepare('SELECT title FROM papers WHERE paper_id=7').get() as any).title,'kept');
   assert.equal((store.db.prepare('SELECT source_id FROM kb_entries WHERE entry_id=8').get() as any).source_id,7);
   assert.equal((store.db.prepare('SELECT status FROM knowledge_operations WHERE id=9').get() as any).status,'成功');
-  assert.equal((store.db.prepare('SELECT count(*) n FROM evoresearch_migrations').get() as any).n,3);
+  assert.equal((store.db.prepare('SELECT count(*) n FROM evoresearch_migrations').get() as any).n,5);
  } finally {store.close();}
 });
 test('adopts deployed knowledge v2 and preserves unrelated member tables',()=>{
@@ -59,7 +59,7 @@ test('composition releases routes and database without loading SSH',async t=>{
  const scope:any={provide(){return ()=>{};},inject(){},connection:{},llm:{},get(){},webServer:{register(route:any){routes.push(route);return ()=>{routes.splice(routes.indexOf(route),1);};}},effect(fn:any){cleanup.push(fn());}};
  try {
  installRuntime({inject(names:string[],fn:any){assert.deepEqual(names,['connection','webServer','llm']);fn(scope);}} as any);
- assert.deepEqual(routes.map(x=>x.path),['/operations','/papers','/kb']);
+ assert.deepEqual(routes.map(x=>x.path),['/operations','/papers','/kb','/models']);
  await cleanup[0]();assert.equal(routes.length,0);
  const store=openDatabase({databasePath:join(dir,'runtime.sqlite')});store.close();
  }finally{if(prior===undefined)delete process.env.EVORESEARCH_DB_PATH;else process.env.EVORESEARCH_DB_PATH=prior;}
