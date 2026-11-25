@@ -1,15 +1,28 @@
-import { App } from './App.jsx'
-import { styles } from './styles.js'
+import { Workbench } from './Workbench.jsx'
 
-export const inject = ['slots']
-const panelId = 'evoresearch-front-end-panel'
+export const inject = ['slots', 'sidebarRightTabs']
 
+const PANEL_ID = 'evoresearch-front-end-panel'
+const WORKBENCH_KIND = 'evoresearch.workbench'
+
+// DSH 0.2.1-rc.2 原生右侧停靠面板：左栏导航与中栏对话保持 DSH 原生，
+// EvoResearch 工作台作为右栏 tab 类型注册，随插件注册与卸载同生共死。
 export function apply(ctx) {
-  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: panelId }, Panel))
-  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({
-    name: 'sidebar.panellist', id: panelId, label: 'EvoResearch', order: 20,
-  }, Icon))
-}
+  ctx.effect(() => ctx.sidebarRightTabs.register({
+    id: PANEL_ID,
+    kind: WORKBENCH_KIND,
+    keepMounted: true,
+    title: () => 'EvoResearch',
+    guide: [{
+      id: 'workbench',
+      order: 10,
+      title: () => 'EvoResearch 工作台',
+      description: () => '打开科研工作台：实验与知识库。',
+    }],
+  }), 'evoresearch: workbench tab type')
 
-function Panel() { return <><style>{styles}</style><App /></> }
-function Icon({ size = 18 }) { return <span aria-hidden="true" style={{ fontSize: size }}>▤</span> }
+  ctx.effect(() => ctx.slots.inject('sidebar.right.pane.tab', () => ctx.slots.register({
+    name: 'sidebar.right.pane.tab',
+    key: PANEL_ID,
+  }, Workbench)), 'evoresearch: workbench body')
+}

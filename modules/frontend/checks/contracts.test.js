@@ -58,18 +58,31 @@ test('metric lines keep different seeds apart and require a common axis', () => 
   assert.deepEqual(chartLines([{ runId: 1, points: [{ epoch: 1, value: 2 }, { global_step: 1, value: 2 }] }]), [])
 })
 
-test('built DSH client registers exactly one sidebar and main panel', async () => {
+test('built DSH client registers the right-sidebar workbench tab type and body', async () => {
   let bundle
   const code = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
   runInNewContext(code, { window: { __ModuleLoader__: { load(value) { bundle = value } } } })
   const requested = []
   const plugin = bundle.factory((name) => { requested.push(name); return {} })
   assert.ok(requested.every((name) => ['react', 'react/jsx-runtime'].includes(name)))
-  const registrations = []
-  plugin.apply({ slots: {
-    inject(_name, register) { return register() },
-    register(options) { registrations.push(options) },
-  } })
-  assert.equal(registrations.length, 2)
-  assert.equal(registrations[0].key, registrations[1].id)
+  const tabTypes = []
+  const seatRegistrations = []
+  const ctx = {
+    sidebarRightTabs: { register(definition) { tabTypes.push(definition); return () => {} } },
+    slots: {
+      inject(name, register) { assert.equal(name, 'sidebar.right.pane.tab'); return register() },
+      register(options, component) { seatRegistrations.push({ options, component }); return () => {} },
+    },
+    effect(run) { return run() },
+  }
+  plugin.apply(ctx)
+  assert.equal(tabTypes.length, 1)
+  assert.equal(tabTypes[0].kind, 'evoresearch.workbench')
+  assert.equal(tabTypes[0].keepMounted, true)
+  assert.ok(Array.isArray(tabTypes[0].guide) && tabTypes[0].guide.length === 1)
+  assert.equal(seatRegistrations.length, 1)
+  assert.equal(seatRegistrations[0].options.key, tabTypes[0].id)
+  assert.equal(typeof seatRegistrations[0].component, 'function')
+  // 旧的六入口整页面板（main + sidebar.panellist）不得再注册。
+  assert.ok(!seatRegistrations.some(({ options }) => options.name === 'main'))
 })
