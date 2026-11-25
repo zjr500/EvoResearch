@@ -1,0 +1,6 @@
+- insert:
+    - id: evoresearch-remote
+      name: evoresearch-plugin/remote
+      config:
+        dbPath: !!js process.env.EVORESEARCH_DB_PATH
+        profilesPath: !!js process.env.EVORESEARCH_SSH_PROFILES_PATH

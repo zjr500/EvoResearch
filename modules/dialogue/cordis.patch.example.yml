@@ -1,0 +1,9 @@
+# 复制到 DSH 启动时的 patch 中，并将 name 替换为本机编译后的绝对路径。
+# 这是示例，不要把本仓库的补丁直接覆盖团队已有的 cordis.patch.yml。
+- insert:
+    - id: f12-knowledge-citation
+      name: '/ABSOLUTE/PATH/TO/f12_dengling_week4/dist/src/dsh/index.js'
+      config:
+        mode: mock
+        baseUrl: 'http://127.0.0.1:3000'
+        timeoutMs: 5000

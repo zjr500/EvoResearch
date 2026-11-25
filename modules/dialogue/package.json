@@ -1,0 +1,46 @@
+{
+  "name": "dsh-f12-knowledge-citation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "第4周 F12 - DSH 会话工具接入、模拟知识检索与来源引用",
+  "main": "./dist/src/dsh/index.js",
+  "exports": {
+    ".": "./dist/src/dsh/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "demo": "npm run build && node scripts/demo.mjs",
+    "check": "npm run test && npm run demo",
+    "typecheck:host": "tsc -p tsconfig.host.json"
+  },
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": "^0.2.1-rc.2"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "~3.18.5"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  },
+  "dsh": {}
+}
