@@ -30,10 +30,11 @@
     "dsh": ">=0.2.1-rc.2 <0.3.0"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/components.mjs build",
-    "check": "tsc -p tsconfig.json --noEmit && node scripts/components.mjs check",
+    "build": "npm run build:dialogue && tsc -p tsconfig.json && node scripts/components.mjs build",
+    "check": "npm run build:dialogue && tsc -p tsconfig.json --noEmit && node scripts/components.mjs check",
     "test": "npm run build && node --import tsx --test test/*.test.mjs test/*.test.ts && node scripts/components.mjs test",
-    "db:migrate": "npm run build && node scripts/migrate.mjs"
+    "db:migrate": "npm run build && node scripts/migrate.mjs",
+    "build:dialogue": "tsc -p modules/dialogue/tsconfig.json"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5",

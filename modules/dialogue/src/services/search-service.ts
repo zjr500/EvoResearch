@@ -2,7 +2,7 @@ import { validateRequest } from '../domain/validate.js'
 import type { RankedResult, SearchAdapter, SearchHit } from '../domain/types.js'
 
 export class SearchService {
-  constructor(readonly adapter: SearchAdapter, readonly mode: 'mock' | 'http') {}
+  constructor(readonly adapter: SearchAdapter, readonly mode: 'mock' | 'http' | 'service') {}
 
   async search(query: string, topK = 5): Promise<RankedResult> {
     const request = validateRequest(query, topK)

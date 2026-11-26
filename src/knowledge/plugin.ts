@@ -17,7 +17,20 @@ interface Host {
  webServer:{register(route:{kind:'prefix';path:string;handler(req:IncomingMessage,res:ServerResponse):Promise<void>}):()=>void};
  llm:DshLlm;
 }
-export function installKnowledge(scope:Context, store:SharedDatabase) {
+/** Cross-module public knowledge surface; also provided as 'evoresearchKnowledge'. */
+export interface KnowledgeService {
+ search(owner:number,query:string,topK?:number):Promise<{query:string;total:number;items:import('./search.js').KnowledgeHit[]}>;
+ reindex(owner:number):Promise<number>;
+ entries(owner:number,params?:Record<string,string>):unknown;
+ entry(owner:number,entryId:number):unknown;
+ publishReport(owner:number,input:ReportPublication):{entry_id:number;duplicated:boolean};
+ events:{
+  list(owner:number,after?:number,limit?:number):unknown[];
+  claim(owner:number,channel:'index'|'graph',after?:number,limit?:number):unknown[];
+  settle(owner:number,eventId:number,channel:'index'|'graph',outcome:'done'|'failed',expectedRevision:number):{event_id:number;channel:string;status:string};
+ };
+}
+export function installKnowledge(scope:Context, store:SharedDatabase):{knowledge:KnowledgeService;dispose:()=>Promise<void>} {
   const host=scope as unknown as Host;
   const { db, papersPath } = store;
   const operations=new Operations(db);
@@ -37,17 +50,18 @@ export function installKnowledge(scope:Context, store:SharedDatabase) {
   disposers.push(scope.provide('evoresearchKnowledgePublications',{list:(owner:number,after?:number,limit?:number)=>knowledgePublications(db,owner,after,limit)}));
   // Cross-module public knowledge surface: semantic search, entry reads,
   // report publication, and sync-event consumption for indexing/graph workers.
-  disposers.push(scope.provide('evoresearchKnowledge',{
-   search:(owner:number,query:string,topK?:number)=>search.search(owner,query,topK),
-   reindex:(owner:number)=>search.reindex(owner),
-   entries:(owner:number,params?:Record<string,string>)=>listEntries(db,owner,new URLSearchParams(params)),
-   entry:(owner:number,entryId:number)=>entryFor(db,owner,entryId),
-   publishReport:(owner:number,input:ReportPublication)=>publishReport(db,owner,input),
+  const knowledge:KnowledgeService={
+   search:(owner,query,topK)=>search.search(owner,query,topK),
+   reindex:(owner)=>search.reindex(owner),
+   entries:(owner,params)=>listEntries(db,owner,new URLSearchParams(params)),
+   entry:(owner,entryId)=>entryFor(db,owner,entryId),
+   publishReport:(owner,input)=>publishReport(db,owner,input),
    events:{
-    list:(owner:number,after?:number,limit?:number)=>knowledgePublications(db,owner,after,limit),
-    claim:(owner:number,channel:'index'|'graph',after?:number,limit?:number)=>claimKnowledgeEvents(db,owner,channel,after,limit),
-    settle:(owner:number,eventId:number,channel:'index'|'graph',outcome:'done'|'failed',expectedRevision:number)=>settleKnowledgeEvent(db,owner,eventId,channel,outcome,expectedRevision),
+    list:(owner,after,limit)=>knowledgePublications(db,owner,after,limit),
+    claim:(owner,channel,after,limit)=>claimKnowledgeEvents(db,owner,channel,after,limit),
+    settle:(owner,eventId,channel,outcome,expectedRevision)=>settleKnowledgeEvent(db,owner,eventId,channel,outcome,expectedRevision),
    },
-  }));
-  return async()=>{disposers.forEach(fn=>fn());await operations.drain();};
+  };
+  disposers.push(scope.provide('evoresearchKnowledge',knowledge));
+  return {knowledge,dispose:async()=>{disposers.forEach(fn=>fn());await operations.drain();}};
 }

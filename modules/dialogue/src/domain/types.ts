@@ -21,5 +21,5 @@ export interface SearchAdapter {
 export interface RankedResult {
   query: string
   items: SearchHit[]
-  mode: 'mock' | 'http'
+  mode: 'mock' | 'http' | 'service'
 }

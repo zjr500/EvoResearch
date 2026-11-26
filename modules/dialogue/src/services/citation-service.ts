@@ -1,6 +1,6 @@
 import type { RankedResult, SearchHit } from '../domain/types.js'
 
-const label = (mode: 'mock' | 'http') => mode === 'mock' ? '模拟检索结果（非真实知识库）' : '知识库检索结果'
+const label = (mode: 'mock' | 'http' | 'service') => mode === 'mock' ? '模拟检索结果（非真实知识库）' : '知识库检索结果'
 const sourceLine = (hit: SearchHit, index: number) => {
   const location = hit.source.page ? `，第 ${hit.source.page} 页` : ''
   const link = hit.source.url ? `，${hit.source.url}` : '（无可用原文链接）'

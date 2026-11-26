@@ -8,6 +8,8 @@ import {PurposeModels} from './infrastructure/models.js';
 import {LocalExecution,type LocalServices} from './infrastructure/local-execution.js';
 import {DockerExecution} from './experiment/docker-execution.js';
 import {registerExperimentTools} from './experiment/agent-tools.js';
+import {installCitation} from './dialogue/citation-integration.js';
+import type {KnowledgeService} from './knowledge/plugin.js';
 import {dirname,resolve} from 'node:path';
 
 /** Public backend services only; no new training workflow or remote execution. */
@@ -15,6 +17,7 @@ export function installRuntime(ctx: Context) {
  return ctx.inject(['connection','webServer','llm'],scope=>{
   const host=scope as any;
   const store=openDatabase();
+  let knowledge:KnowledgeService|undefined;
   let disposeKnowledge:(()=>Promise<void>)|undefined;
   let local:LocalExecution|undefined;
   const disposers:(()=>void)[]=[];
@@ -30,9 +33,13 @@ export function installRuntime(ctx: Context) {
    // restricted tools; owner is the local DSH host owner (see http.ts).
    scope.inject(['tools','systemPrompt'],toolScope=>{
     toolScope.effect(()=>registerExperimentTools(toolScope as unknown as Context,dockerExecution,experimentWorkspace,1));
+    // Dialogue citation tools query the unified knowledge service in process.
+    if(knowledge)toolScope.effect(()=>installCitation(toolScope as unknown as Context,knowledge!,1));
    });
    disposers.push(host.webServer.register({kind:'prefix',path:'/operations',handler:authenticatedHandler(host.connection,operationApi(operations))}));
-   disposeKnowledge=installKnowledge(scope,store);
+   const installed=installKnowledge(scope,store);
+   knowledge=installed.knowledge;
+   disposeKnowledge=installed.dispose;
    scope.inject(['subprocess','sandbox','jobs','fs'],nativeScope=>{
     local=new LocalExecution(store.db,nativeScope as unknown as LocalServices);
     const current=local;nativeScope.provide('evoresearchLocalExecution',current);

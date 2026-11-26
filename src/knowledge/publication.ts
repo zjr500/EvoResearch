@@ -43,5 +43,5 @@ export function settleKnowledgeEvent(db:Database.Database,owner:number,eventId:u
  const result=db.prepare(`UPDATE knowledge_sync_events SET ${kind}_status=? WHERE event_id=? AND owner_id=? AND ${kind}_status='pending' AND entry_revision=?`)
   .run(outcome,eventId,owner,expectedRevision);
  if(!result.changes)throw new AppError(4009,'Event already settled, belongs to another owner, or entry revision changed');
- return {event_id:eventId,channel:kind,status:outcome};
+ return {event_id:eventId as number,channel:kind,status:outcome};
 }
