@@ -7,6 +7,7 @@ import {authenticatedHandler} from './infrastructure/http.js';
 import {PurposeModels} from './infrastructure/models.js';
 import {LocalExecution,type LocalServices} from './infrastructure/local-execution.js';
 import {DockerExecution} from './experiment/docker-execution.js';
+import {registerExperimentTools} from './experiment/agent-tools.js';
 import {dirname,resolve} from 'node:path';
 
 /** Public backend services only; no new training workflow or remote execution. */
@@ -22,7 +23,14 @@ export function installRuntime(ctx: Context) {
    const models=new PurposeModels(host.llm,{currentSelection:()=>scope.get('agentDefaultModel')?.currentSelection()});
    disposers.push(scope.provide('evoresearchModels',models));
    disposers.push(scope.provide('evoresearchOperations',operations));
-   disposers.push(scope.provide('evoresearchExperimentExecution',new DockerExecution(store.db,{workspaceRoot:resolve(dirname(store.databasePath),'experiments')})));
+   const experimentWorkspace=resolve(dirname(store.databasePath),'experiments');
+   const dockerExecution=new DockerExecution(store.db,{workspaceRoot:experimentWorkspace});
+   disposers.push(scope.provide('evoresearchExperimentExecution',dockerExecution));
+   // Experiment agent tools: the model drives experiments only through these
+   // restricted tools; owner is the local DSH host owner (see http.ts).
+   scope.inject(['tools','systemPrompt'],toolScope=>{
+    toolScope.effect(()=>registerExperimentTools(toolScope as unknown as Context,dockerExecution,experimentWorkspace,1));
+   });
    disposers.push(host.webServer.register({kind:'prefix',path:'/operations',handler:authenticatedHandler(host.connection,operationApi(operations))}));
    disposeKnowledge=installKnowledge(scope,store);
    scope.inject(['subprocess','sandbox','jobs','fs'],nativeScope=>{

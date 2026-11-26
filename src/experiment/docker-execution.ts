@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
@@ -51,6 +51,7 @@ export interface ExecutionRecord {
 export class DockerExecution {
   private readonly image: string;
   private readonly workspaceRoot: string;
+  private readonly instanceTag = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   private readonly stopRequested = new Set<number>();
   constructor(private db: Database.Database, options: { workspaceRoot: string; image?: string }) {
     this.image = options.image ?? DEFAULT_WORKER_IMAGE;
@@ -93,9 +94,14 @@ export class DockerExecution {
   }
 
   /** Resolve a mount path and prove it stays inside the workspace root. */
-  private mountSource(dir: string, role: string): string {
+  private mountSource(dir: string, role: string, create = false): string {
     if (typeof dir !== 'string' || !dir.trim()) throw new AppError(4001, `${role} directory required`);
-    const resolved = realpathSync(resolve(dir));
+    const target = resolve(dir);
+    if (!existsSync(target)) {
+      if (!create) throw new AppError(4001, `${role} directory does not exist: ${target}`);
+      mkdirSync(target, { recursive: true });
+    }
+    const resolved = realpathSync(target);
     if (resolved !== this.workspaceRoot && !resolved.startsWith(this.workspaceRoot + sep))
       throw new AppError(4001, `${role} directory must stay inside ${this.workspaceRoot}`);
     return resolved;
@@ -112,7 +118,7 @@ export class DockerExecution {
     if (!Number.isSafeInteger(memoryMb) || memoryMb < 64 || memoryMb > 8192) throw new AppError(4001, 'memoryMb must be 64..8192');
     const cpus = request.cpus ?? 1;
     if (typeof cpus !== 'number' || cpus < 0.5 || cpus > 8) throw new AppError(4001, 'cpus must be 0.5..8');
-    const workDir = this.mountSource(request.workDir, 'work');
+    const workDir = this.mountSource(request.workDir, 'work', true);
     const trainDir = request.trainDir ? this.mountSource(request.trainDir, 'train') : undefined;
     const valDir = request.valDir ? this.mountSource(request.valDir, 'val') : undefined;
     await this.requireEnvironment();
@@ -121,7 +127,7 @@ export class DockerExecution {
       VALUES(?,?,?,?,CURRENT_TIMESTAMP)`).run(owner, 'running', this.image,
       JSON.stringify({ workDir, trainDir, valDir, timeoutSeconds, memoryMb, cpus, scriptBytes: Buffer.byteLength(request.script) }));
     const executionId = Number(inserted.lastInsertRowid);
-    const container = `evoresearch-exec-${executionId}`;
+    const container = this.containerName(executionId);
     try {
       await writeFile(join(workDir, '.evoresearch-entry.py'), request.script, 'utf8');
       const args = ['run', '-d', '--name', container, '--pull', 'never',
@@ -143,6 +149,12 @@ export class DockerExecution {
     }
   }
 
+  private containerName(executionId: number): string {
+    // Unique per service instance so parallel test suites or plugin reloads
+    // never collide on the shared daemon.
+    return `evoresearch-exec-${this.instanceTag}-${executionId}`;
+  }
+
   private async inspect(container: string, format: string): Promise<string> {
     return this.docker(['inspect', '--format', format, container], 15000);
   }
@@ -153,7 +165,7 @@ export class DockerExecution {
     if (row.status !== 'running') return row;
     const request = JSON.parse(this.requestJson(executionId));
     const deadline = Date.now() + request.timeoutSeconds * 1000;
-    const container = row.container_name ?? `evoresearch-exec-${executionId}`;
+    const container = row.container_name ?? this.containerName(executionId);
     let running = true;
     while (running && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, pollMs));
@@ -188,7 +200,20 @@ export class DockerExecution {
     const row = this.record(executionId);
     if (row.status !== 'running') throw new AppError(4009, 'Execution is not running');
     this.stopRequested.add(executionId);
-    await this.docker(['stop', '--time', '2', row.container_name ?? `evoresearch-exec-${executionId}`], 30000).catch(() => '');
+    await this.docker(['stop', '--time', '2', row.container_name ?? this.containerName(executionId)], 30000).catch(() => '');
+  }
+
+  /** Read a text artifact from a finished execution's work mount, path-escape safe. */
+  readArtifact(executionId: number, relativePath: string, maxBytes = 512 * 1024): string {
+    const record = this.record(executionId);
+    if (record.status === 'running' || record.status === 'queued') throw new AppError(4009, 'Execution is still running');
+    if (typeof relativePath !== 'string' || !relativePath.trim() || relativePath.includes('\0')) throw new AppError(4001, 'artifact path required');
+    const workDir = realpathSync(resolve(JSON.parse(this.requestJson(executionId)).workDir));
+    const target = realpathSync(resolve(workDir, relativePath));
+    if (target !== workDir && !target.startsWith(workDir + sep)) throw new AppError(4001, 'artifact path must stay inside the execution work directory');
+    const size = statSync(target).size;
+    if (size > maxBytes) throw new AppError(4001, 'artifact too large');
+    return readFileSync(target, 'utf8');
   }
 
   record(executionId: number): ExecutionRecord {
