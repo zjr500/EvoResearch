@@ -17,7 +17,7 @@ export function apply(ctx: Context): void {
       render: (_args, value) => [{ type: 'text', text: value }],
     },
     async execute() {
-      return 'EvoResearch plugin is ready (week 4 skeleton).'
+      return 'EvoResearch plugin is ready (unified skeleton: knowledge services, controlled Docker execution, citation tools, workbench frontend).'
     },
   }))
 }
