@@ -15,7 +15,7 @@ EvoResearch 是基于 DeepSeek Harness（DSH）的 AI 自主实验与自进化�
 
 | 骨架 | 位置 | 状态 |
 | --- | --- | --- |
-| 三栏工作台前端 | `modules/frontend/` | 挂载在 DSH 原生右侧边栏，仅“实验”“知识库”两个入口，真实对接知识库 API |
+| 三栏工作台前端 | `modules/frontend/` | 挂载在 DSH 原生右侧边栏，“实验”“知识库”两个入口；知识库入口已实现 UC01 完整流程（导入、摘要、确认、检索、详情、PDF 原文），实验入口按设计示意图分区并呈现真实空状态；对话输入框显示知识库接入徽标 |
 | 共享基础设施 | `src/infrastructure/` | 共享数据库、操作幂等、认证处理器、迁移登记 |
 | 迁移目录机制 | `migrations/modules/<模块>/NNN_name.sql` | 各模块按目录登记迁移，不改公共文件 |
 | 知识公共服务 | `src/knowledge/` | `POST /kb/search`（sqlite-vec 语义检索）、报告幂等入库、同步事件 claim/settle；cordis 服务 `evoresearchKnowledge` |
@@ -25,10 +25,11 @@ EvoResearch 是基于 DeepSeek Harness（DSH）的 AI 自主实验与自进化�
 
 诚实边界：
 
-- 语义检索需要配置本地 embedding 服务（`EVORESEARCH_EMBEDDING_BASE` + `EVORESEARCH_EMBEDDING_MODEL`，Ollama 兼容接口）；未配置时 `POST /kb/search` 返回 4009，不会用关键词检索冒充语义检索。
+- 语义检索需要配置本地 embedding 服务（`EVORESEARCH_EMBEDDING_BASE` + `EVORESEARCH_EMBEDDING_MODEL`，Ollama 兼容接口）；未配置时 `POST /kb/search` 返回 4009，不会用关键词检索冒充语义检索。已用 nomic-embed-text（768 维）在本地完成真实检索验证。
+- 摘要生成复用 DSH 已登录模型；DSH 未登录模型时导入论文会得到“摘要失败”的诚实状态，可在登录后重新生成。
 - 实验执行只跑 CPU；GPU 框架训练尚未验证。
 - Agent 两轮链路用 Mock 规划器验证过工具回路，不等于真实模型的自主实验验收。
-- 知识图谱、实验业务后端（UC04—UC11）尚未实现，图谱区域为占位。
+- 知识图谱、实验业务后端（UC04—UC11）尚未通过 HTTP 开放，实验页各区域呈现真实空状态，不展示虚构数据。
 - `modules/remote-ssh/` 是已放弃的 SSH 路线源码，保留但不加载。
 
 ## 构建与测试
@@ -53,6 +54,17 @@ dsh --profile evoresearch-dev --dump-config
 配置输出中应出现 `evoresearch-plugin`。也可安装到现有的 `web` profile，再执行 `dsh web --no-open`；在 DSH 对话中调用 `evoresearch_status` 可确认插件加载。开发时先执行 `npm run build`，再启动 DSH。
 
 参照 `.env.example` 将数据库路径设置到启动进程的环境变量；本项目不会自动加载 `.env`。不要提交 `.env`、SQLite 数据库或凭证。
+
+## 快速开始（安装与首次使用）
+
+1. **安装插件**：在本仓库执行 `npm run build && npm pack` 得到 `evoresearch-plugin-*.tgz`，在目标 DSH profile 中执行 `dsh plugin --profile <你的profile> add <tgz路径>`；开发时也可以直接 `add <仓库路径>` 链接本 checkout。
+2. **配置环境变量**（在启动 DSH 的进程环境中设置，不要提交）：
+   - `EVORESEARCH_DB_PATH`：插件数据库文件路径，缺省为启动目录下 `data/evoresearch.sqlite`。
+   - `EVORESEARCH_EMBEDDING_BASE` / `EVORESEARCH_EMBEDDING_MODEL`：语义检索的本地向量服务，两者须同时设置；不设置则语义检索如实返回不可用。
+3. **本地向量服务（二选一）**：
+   - 标准方式：安装 Ollama 后 `ollama pull nomic-embed-text`，服务地址为 `http://127.0.0.1:11434`，模型名 `nomic-embed-text`。
+   - 轻量方式：用 fastembed（ONNX，无需 GPU）在本地起一个兼容 `POST /api/embed` 的小服务加载 `nomic-ai/nomic-embed-text-v1.5`，指向同一地址即可；任何返回 `{"embeddings": [[...]]}` 的 Ollama 兼容端点都可使用。
+4. **启动并验证**：`dsh --profile <你的profile>` 启动后打开右侧边栏的 EvoResearch 工作台。首次使用建议按顺序验证：导入一篇 PDF 论文（需 DSH 已登录模型以生成摘要）→ 查看/编辑 → 确认入库 → 知识条目出现 → 语义检索命中 → 对话输入框出现“知识库 · N 条”徽标。
 
 ## 成员开发入口
 
