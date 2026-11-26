@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, rmSync, symlinkSync, readFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,9 +46,12 @@ test('npm pack ships every runtime input and migrations run from the packed layo
   assert.ok(manifest.exports?.['./experiment-preset']?.default, 'experiment-preset export missing');
 
   // Run the real migration script from the packed layout against a throwaway
-  // database. Dependencies resolve through a junction to the repo install so
-  // the smoke test stays offline; the packed code itself does the work.
-  symlinkSync(resolve(repoRoot, 'node_modules'), join(root, 'node_modules'), 'junction');
+  // database. Only the two native runtime dependencies migrate.mjs needs are
+  // copied into the packed layout (junctions are denied by Windows AV under
+  // parallel test load); the packed code itself does the work.
+  for (const pkg of ['better-sqlite3', 'sqlite-vec']) {
+    cpSync(resolve(repoRoot, 'node_modules', pkg), join(root, 'node_modules', pkg), { recursive: true });
+  }
   const dbPath = join(mkdtempSync(join(tmpdir(), 'evo-smoke-db-')), 'smoke.sqlite');
   const migrated = execFileSync(process.execPath, ['scripts/migrate.mjs'], {
     cwd: root, encoding: 'utf8',
