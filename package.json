@@ -10,10 +10,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./experiment-preset": {
-      "types": "./dist/experiment/preset-plugin.d.ts",
-      "default": "./dist/experiment/preset-plugin.js"
     }
   },
   "files": [

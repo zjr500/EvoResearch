@@ -1,3 +1,4 @@
+import { registerExperimentTools } from './agent-tools.js';
 import { randomUUID } from 'node:crypto';
 import type { Context } from '@deepseek-ai/cordis';
 import { AppError, ownerId } from '../infrastructure/errors.js';
@@ -62,6 +63,33 @@ export class ExperimentAgentService {
     private readonly execution: DockerExecution,
   ) {}
 
+  async configureAgent(
+    agentCtx: Context,
+    owner: number,
+    taskId: string
+  ): Promise<void> {
+    const presets = this.hostCtx.get(
+      'agentPresets'
+    ) as PresetsServiceLike;
+
+    await presets.mount(agentCtx, EXPERIMENT_PRESET_ID);
+
+    // 禁止继承其他工具
+    agentCtx.tools.restrict({ allow: [] });
+
+    // 注册当前任务的实验工具
+    agentCtx.effect(() =>
+      registerExperimentTools(
+        agentCtx,
+        this.execution,
+        owner,
+        taskId
+      )
+    );
+
+    agentCtx.tools.presentAs('native');
+  }
+
   async launch(owner: number, request: ExperimentAgentLaunchRequest): Promise<ExperimentAgentInfo> {
     ownerId(owner);
     if (typeof request.prompt !== 'string' || !request.prompt.trim()) throw new AppError(4001, 'prompt required');
@@ -85,9 +113,12 @@ export class ExperimentAgentService {
         ...(selection.reasoningEffort === undefined ? {} : { reasoningEffort: selection.reasoningEffort }),
       },
       setup: async (agentCtx: Context) => {
-        await presets.mount(agentCtx, EXPERIMENT_PRESET_ID);
-        (agentCtx.get('tools') as { presentAs?(mode: string): void } | undefined)?.presentAs?.('native');
-      },
+        await this.configureAgent(
+          agentCtx,
+          owner,
+          request.taskId
+      );
+    },
     });
     try {
       handle.agent.followup({

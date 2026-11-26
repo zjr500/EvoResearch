@@ -89,6 +89,12 @@ export class CertificationService {
     ownerId(owner);
     if (!this.execution) throw new AppError(4009, 'execution service unavailable');
     if (typeof input.taskId !== 'string' || !input.taskId.trim()) throw new AppError(4001, 'taskId required');
+    // 确保被冻结的实验产物属于当前研究任务
+    this.execution.assertTaskExecution(
+      owner,
+      input.taskId,
+      input.executionId
+    );
     const record = this.execution.record(owner, input.executionId);
     if (!TERMINAL_STATUSES.has(record.status)) throw new AppError(4009, 'execution is still running; freeze only finished runs');
     if (record.status !== 'succeeded') throw new AppError(4001, `cannot freeze a ${record.status} execution as a candidate`);
@@ -156,6 +162,14 @@ export class CertificationService {
     if (!Number.isSafeInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600) throw new AppError(4001, 'timeoutSeconds must be 1..3600');
     this.snapshot(owner, input.snapshotId);
     const snapshot = this.verifyFrozen('candidate_snapshots', 'snapshot_id', 'snapshot_dir', input.snapshotId);
+    // 检查测试集是否属于当前用户
+    const ownedTestSet = this.db.prepare(
+      'SELECT test_set_id FROM test_sets WHERE test_set_id=? AND owner_id=?'
+    ).get(input.testSetId, owner);
+
+    if (!ownedTestSet) {
+      throw new AppError(4004, 'Test set not found');
+    }
     const testSet = this.verifyFrozen('test_sets', 'test_set_id', 'test_set_dir', input.testSetId);
     const environment = await this.engine.requireEnvironment();
     const deadline = new Date(Date.now() + timeoutSeconds * 1000);

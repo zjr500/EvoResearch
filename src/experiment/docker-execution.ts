@@ -122,7 +122,15 @@ export class DockerExecution {
     if (idempotencyKey !== null && (idempotencyKey.length < 1 || idempotencyKey.length > 200)) throw new AppError(4001, 'idempotencyKey too long');
     if (idempotencyKey) {
       const existing = this.db.prepare('SELECT execution_id FROM experiment_executions WHERE owner_id=? AND idempotency_key=?').get(owner, idempotencyKey) as { execution_id: number } | undefined;
-      if (existing) return existing.execution_id;
+      if (existing) {
+        // 重复请求必须属于当前研究任务
+        this.assertTaskExecution(
+          owner,
+          taskId,
+          existing.execution_id
+        );
+        return existing.execution_id;
+      }
     }
     const environment = await this.engine.requireEnvironment();
     const paths = this.prepareTask(owner, taskId);
@@ -136,6 +144,12 @@ export class DockerExecution {
     } catch (error) {
       if (idempotencyKey && String(error).includes('UNIQUE')) {
         const raced = this.db.prepare('SELECT execution_id FROM experiment_executions WHERE owner_id=? AND idempotency_key=?').get(owner, idempotencyKey) as { execution_id: number };
+        // 并发产生的重复执行记录也必须属于当前任务
+        this.assertTaskExecution(
+          owner,
+          taskId,
+          raced.execution_id
+        );
         return raced.execution_id;
       }
       throw error;
@@ -296,6 +310,18 @@ export class DockerExecution {
     const taskId = JSON.parse(row.request_json).taskId as string;
     return join(this.tasksRoot, taskId, 'work', `exec-${executionId}`);
   }
+
+  assertTaskExecution(
+  owner: number,
+  taskId: string,
+  executionId: number
+): void {
+  this.record(owner, executionId);
+
+  if (this.requestTaskId(executionId) !== taskId) {
+    throw new AppError(4004, 'Execution not found in current task');
+  }
+}
 
   private requestTaskId(executionId: number): string | undefined {
     const row = this.db.prepare('SELECT request_json FROM experiment_executions WHERE execution_id=?').get(executionId) as { request_json: string } | undefined;

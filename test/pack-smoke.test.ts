@@ -21,14 +21,15 @@ test('npm pack ships every runtime input and migrations run from the packed layo
   assert.ok(tarball, `npm pack produced no tarball: ${output}`);
   const installDir = mkdtempSync(join(tmpdir(), 'evo-install-'));
   try {
-  // Windows bsdtar reads "C:/..." as a remote host spec; --force-local keeps it local.
-  execFileSync('tar', ['--force-local', '-xzf', join(repoRoot, tarball)], { cwd: installDir });
+  // Read from stdin: portable across Windows bsdtar and GNU tar, without drive-letter parsing.
+  execFileSync('tar', ['-xzf', '-'], { cwd: installDir, input: readFileSync(join(repoRoot, tarball)) });
   const root = join(installDir, 'package');
 
   // Every runtime input the plugin or DSH needs after installation.
   const required = [
     'dist/index.js',                     // cordis entry point
-    'dist/experiment/preset-plugin.js',  // ./experiment-preset export (experiment preset tools)
+    'dist/experiment/agent-launch.js',
+    'dist/experiment/agent-tools.js',
     'dist/runtime.js',
     'cordis.patch.yml',                  // composition incl. the experiment agent preset
     'migrations/knowledge/006_sync_consistency.sql',
@@ -40,10 +41,10 @@ test('npm pack ships every runtime input and migrations run from the packed layo
   ];
   for (const file of required) assert.ok(existsSync(join(root, file)), `tarball is missing ${file}`);
 
-  // The exports map must expose both entry points the patch references.
+  // 检查项目是否正确导出插件入口
   const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   assert.ok(manifest.exports?.['.']?.default, 'main export missing');
-  assert.ok(manifest.exports?.['./experiment-preset']?.default, 'experiment-preset export missing');
+  
 
   // Run the real migration script from the packed layout against a throwaway
   // database. Only the two native runtime dependencies migrate.mjs needs are

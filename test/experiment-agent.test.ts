@@ -27,7 +27,9 @@ const fakeCtx: any = {
   tools: { register: (tool: any) => { tools.set(tool.name, tool); return () => tools.delete(tool.name); } },
   systemPrompt: { section: (options: any) => { promptText = options.text; return () => { promptText = ''; }; } },
 };
-registerExperimentTools(fakeCtx, execution, 1);
+
+// 将测试 Agent 绑定到指定研究任务
+registerExperimentTools(fakeCtx, execution, 1, 'mock-chain');
 const execContext = () => ({ signal: new AbortController().signal });
 
 let available = false;
@@ -85,7 +87,7 @@ test('mock planner improves over two real isolated rounds', { timeout: 300000 },
   const executions: number[] = [];
   for (let round = 1; round <= 2; round++) {
     const output = await runTool.execute({
-      taskId: 'mock-chain', script: scriptFor(iterations), timeoutSeconds: 120,
+    script: scriptFor(iterations), timeoutSeconds: 120,
     }, execContext());
     assert.match(output, /状态：succeeded/, output);
     const executionId = Number(output.match(/执行 #(\d+)/)![1]);
@@ -97,15 +99,54 @@ test('mock planner improves over two real isolated rounds', { timeout: 300000 },
   }
   assert.equal(executions.length, 2, 'mock planner needed exactly two rounds');
   assert.equal(accuracy, 1);
-  const listing = await listTool.execute({ limit: 10, taskId: 'mock-chain' }, execContext());
+  const listing = await listTool.execute({ limit: 10 }, execContext());
   for (const id of executions) assert.match(listing, new RegExp(`#${id} succeeded`));
 });
 
-test('tools reject traversal taskIds and never accept host paths', { timeout: 60000 }, async (t) => {
-  if (!available) { t.skip(unavailableReason); return; }
-  const runTool = tools.get('experiment_run')!;
-  await assert.rejects(() => runTool.execute({ taskId: '../outside', script: 'print(1)' }, execContext()), /taskId/);
-  // No path parameters exist on the tool surface at all.
-  const parameters = Object.keys((tools.get('experiment_run') as any).parameters ?? {});
-  for (const key of parameters) assert.doesNotMatch(key, /path|dir|work/i, `tool must not accept path-like parameter ${key}`);
+test('实验 Agent 不允许访问其他研究任务', async () => {
+  // 创建同一用户下另一个研究任务的执行记录
+  const otherId = Number(db.prepare(`
+    INSERT INTO experiment_executions
+    (owner_id, status, image, request_json)
+    VALUES (?, ?, ?, ?)
+  `).run(
+    1,
+    'succeeded',
+    'test-image',
+    JSON.stringify({ taskId: 'other-task' })
+  ).lastInsertRowid);
+
+  // 禁止查询其他任务的执行状态
+  await assert.rejects(
+    () => tools.get('experiment_status')!.execute(
+      { execution_id: otherId }, execContext()
+    ),
+    /Execution not found in current task/
+  );
+
+  // 禁止停止其他任务的执行
+  await assert.rejects(
+    () => tools.get('experiment_stop')!.execute(
+      { execution_id: otherId }, execContext()
+    ),
+    /Execution not found in current task/
+  );
+
+  // 禁止读取其他任务的实验产物
+  await assert.rejects(
+    () => tools.get('experiment_read_artifact')!.execute(
+      { execution_id: otherId, path: 'metrics.json' },
+      execContext()
+    ),
+    /Execution not found in current task/
+  );
+
+  // 实验列表不得包含其他任务的执行记录
+  const listing = await tools.get('experiment_list')!
+    .execute({ limit: 50 }, execContext());
+
+  assert.doesNotMatch(
+    listing,
+    new RegExp(`#${otherId}\\s`)
+  );
 });

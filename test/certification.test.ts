@@ -73,7 +73,9 @@ test('frozen snapshot hash matches the copied content', { timeout: 180000 }, asy
 
 test('certification runs the frozen candidate against the hidden test set', { timeout: 300000 }, async (t) => {
   if (!available) { t.skip(unavailableReason); return; }
-  const snapshotId = Number(db.prepare('SELECT snapshot_id FROM candidate_snapshots ORDER BY snapshot_id').get()!.snapshot_id);
+  const snapshotId = Number(
+    (db.prepare('SELECT snapshot_id FROM candidate_snapshots ORDER BY snapshot_id').get() as { snapshot_id: number }).snapshot_id
+  );
   const testSetId = certification.registerTestSet(1, 'hidden-basic', makeTestSetSource());
   const certificationId = await certification.certify(1, { snapshotId, testSetId, script: EVAL_SCRIPT, timeoutSeconds: 120 });
   const result = await certification.wait(1, certificationId);
@@ -83,8 +85,12 @@ test('certification runs the frozen candidate against the hidden test set', { ti
 
 test('tampered candidate content is refused, never evaluated', { timeout: 120000 }, async (t) => {
   if (!available) { t.skip(unavailableReason); return; }
-  const snapshotId = Number(db.prepare('SELECT snapshot_id FROM candidate_snapshots ORDER BY snapshot_id').get()!.snapshot_id);
-  const testSetId = Number(db.prepare('SELECT test_set_id FROM test_sets ORDER BY test_set_id').get()!.test_set_id);
+  const snapshotId = Number(
+    (db.prepare('SELECT snapshot_id FROM candidate_snapshots ORDER BY snapshot_id').get() as { snapshot_id: number }).snapshot_id
+  );
+  const testSetId = Number(
+    (db.prepare('SELECT test_set_id FROM test_sets ORDER BY test_set_id').get() as { test_set_id: number }).test_set_id
+  );
   const dir = join(certRoot, 'snapshots', `snap-${snapshotId}`);
   const target = join(dir, 'model.json');
   chmodSync(target, 0o666); // Windows best-effort readonly; restore write access to tamper
@@ -97,7 +103,9 @@ test('tampered candidate content is refused, never evaluated', { timeout: 120000
 
 test('tampered test set content is refused, never evaluated', { timeout: 120000 }, async (t) => {
   if (!available) { t.skip(unavailableReason); return; }
-  const testSetId = Number(db.prepare('SELECT test_set_id FROM test_sets ORDER BY test_set_id').get()!.test_set_id);
+  const testSetId = Number(
+    (db.prepare('SELECT test_set_id FROM test_sets ORDER BY test_set_id').get() as { test_set_id: number }).test_set_id
+  );
   const dir = join(certRoot, 'testsets', `ts-${testSetId}`);
   const target = join(dir, 'labels.json');
   chmodSync(target, 0o666);
@@ -118,7 +126,9 @@ test('freeze refuses running or failed executions and crosses no owners', { time
   const runningId = await execution.start(1, { taskId: 'cert-task', script: 'import time; time.sleep(60)', timeoutSeconds: 60 });
   assert.throws(() => certification.freezeCandidate(1, { taskId: 'cert-task', executionId: runningId }), /still running/);
   await execution.cancel(1, runningId);
-  const snapshotId = Number(db.prepare('SELECT snapshot_id FROM candidate_snapshots ORDER BY snapshot_id DESC LIMIT 1').get()!.snapshot_id);
+  const snapshotId = Number(
+    (db.prepare('SELECT snapshot_id FROM candidate_snapshots ORDER BY snapshot_id DESC LIMIT 1').get() as { snapshot_id: number }).snapshot_id
+  );
   assert.throws(() => certification.snapshot(2, snapshotId), /not found/i);
 });
 
@@ -132,4 +142,23 @@ test('training containers never see the certification mounts', { timeout: 180000
   assert.equal(result.status, 'succeeded');
   assert.match(result.log_tail ?? '', /NO_EVAL_MOUNT/);
   assert.match(result.log_tail ?? '', /NO_CANDIDATE_MOUNT/);
+});
+
+test('禁止冻结其他研究任务的实验产物', { timeout: 180000 }, async (t) => {
+  if (!available) {
+    t.skip(unavailableReason);
+    return;
+  }
+
+  const executionId = await trainCandidate();
+
+  // 尝试将 cert-task 的实验产物登记到其他任务
+  assert.throws(
+    () => certification.freezeCandidate(1, {
+      taskId: 'other-task',
+      executionId,
+      files: ['model.json'],
+    }),
+    /Execution not found in current task/
+  );
 });

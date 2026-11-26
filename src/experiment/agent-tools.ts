@@ -12,18 +12,22 @@ function describe(record: ExecutionRecord): string {
 }
 
 /**
- * Experiment agent surface, registered ONLY inside the experiment preset
- * scope — ordinary chat sessions never see these tools. The model names a
- * task and submits Python; the backend derives every mount. It cannot reach
- * the docker CLI, host paths, other tasks, or the certification root.
+ * 注册当前研究任务专用的实验工具。
+ * 任务身份由后端绑定，Agent 不能自行指定其他任务。
+ * 普通对话不加载这些工具。
  */
-export function registerExperimentTools(ctx: Context, execution: DockerExecution, owner: number) {
+export function registerExperimentTools(
+  ctx: Context,
+  execution: DockerExecution,
+  owner: number,
+  taskId: string
+) {
   const disposers = [
     ctx.tools.register(defineTool({
       name: 'experiment_run',
-      description: '在隔离 Docker 容器中运行一段 Python 实验脚本（断网、非 root、资源受限）。训练数据在 /train、/val（只读），产物写入 /work。只需给出 taskId，挂载目录由后端按任务派生。返回执行状态、退出码与日志尾部。',
+      description: '在当前研究任务的隔离 Docker 容器中运行 Python 实验脚本（断网、非 root、资源受限）。训练数据在 /train、/val（只读），产物写入 /work。任务身份及挂载目录由后端确定。返回执行状态、退出码与日志尾部。',
       parameters: {
-        taskId: { type: 'string', required: true, description: '任务标识（字母数字开头，可含 - 和 _）' },
+        
         script: { type: 'string', required: true, description: 'Python 脚本源码' },
         timeoutSeconds: { type: 'integer', description: '超时秒数，默认 600，超时容器被强制停止' },
         memoryMb: { type: 'integer', description: '内存上限 MB，默认 512' },
@@ -31,9 +35,15 @@ export function registerExperimentTools(ctx: Context, execution: DockerExecution
         idempotencyKey: { type: 'string', description: '幂等键；重复提交返回已有执行而不是再跑一次' },
       },
       output: { schema: { type: 'string' }, render: (_args: unknown, value: string) => [{ type: 'text', text: value }] },
-      async execute(args: { taskId: string; script: string; timeoutSeconds?: number; memoryMb?: number; cpus?: number; idempotencyKey?: string }, exec: ToolRunContext) {
+      async execute(args: {
+        script: string;
+        timeoutSeconds?: number;
+        memoryMb?: number;
+        cpus?: number;
+        idempotencyKey?: string;
+      }, exec: ToolRunContext) {
         const record = await execution.run(owner, {
-          taskId: args.taskId, script: args.script,
+          taskId, script: args.script,
           timeoutSeconds: args.timeoutSeconds, memoryMb: args.memoryMb, cpus: args.cpus,
           idempotencyKey: args.idempotencyKey,
         }, exec.signal);
@@ -46,6 +56,7 @@ export function registerExperimentTools(ctx: Context, execution: DockerExecution
       parameters: { execution_id: { type: 'integer', required: true, description: '要停止的执行编号' } },
       output: { schema: { type: 'string' }, render: (_args: unknown, value: string) => [{ type: 'text', text: value }] },
       async execute(args: { execution_id: number }) {
+        execution.assertTaskExecution(owner, taskId, args.execution_id);
         await execution.cancel(owner, args.execution_id);
         return describe(execution.record(owner, args.execution_id));
       },
@@ -56,6 +67,7 @@ export function registerExperimentTools(ctx: Context, execution: DockerExecution
       parameters: { execution_id: { type: 'integer', required: true, description: 'experiment_run 返回的执行编号' } },
       output: { schema: { type: 'string' }, render: (_args: unknown, value: string) => [{ type: 'text', text: value }] },
       async execute(args: { execution_id: number }) {
+        execution.assertTaskExecution(owner, taskId, args.execution_id);
         const record = execution.record(owner, args.execution_id);
         const live = ['succeeded', 'failed', 'timeout', 'stopped'].includes(record.status) ? null : await execution.logs(owner, args.execution_id);
         return live === null ? describe(record) : `${describe(record)}\n实时日志：\n${live.slice(-4000)}`;
@@ -63,16 +75,23 @@ export function registerExperimentTools(ctx: Context, execution: DockerExecution
     })),
     ctx.tools.register(defineTool({
       name: 'experiment_list',
-      description: '列出最近的实验执行记录（编号、状态、时间），可按任务过滤。',
+      description: '列出当前研究任务最近的实验执行记录（编号、状态、时间）。',
       parameters: {
         limit: { type: 'integer', description: '返回条数，默认 10，最多 50' },
-        taskId: { type: 'string', description: '只看某个任务的执行' },
       },
       output: { schema: { type: 'string' }, render: (_args: unknown, value: string) => [{ type: 'text', text: value }] },
-      async execute(args: { limit?: number; taskId?: string }) {
-        const rows = execution.list(owner, Math.min(args.limit ?? 10, 50), args.taskId);
+      async execute(args: { limit?: number }) {
+        const rows = execution.list(
+          owner,
+          Math.min(args.limit ?? 10, 50),
+          taskId
+        );
+
         if (!rows.length) return '还没有实验执行记录。';
-        return rows.map((row) => `#${row.execution_id} ${row.status} exit=${row.exit_code ?? '-'} ${row.created_at}`).join('\n');
+
+        return rows.map(
+          (row) => `#${row.execution_id} ${row.status} exit=${row.exit_code ?? '-'} ${row.created_at}`
+        ).join('\n');
       },
     })),
     ctx.tools.register(defineTool({
@@ -84,6 +103,7 @@ export function registerExperimentTools(ctx: Context, execution: DockerExecution
       },
       output: { schema: { type: 'string' }, render: (_args: unknown, value: string) => [{ type: 'text', text: value }] },
       async execute(args: { execution_id: number; path: string }) {
+        execution.assertTaskExecution(owner, taskId, args.execution_id);
         return execution.readArtifact(owner, args.execution_id, args.path);
       },
     })),
@@ -93,7 +113,7 @@ export function registerExperimentTools(ctx: Context, execution: DockerExecution
     text: [
       '实验执行规则：',
       '- 通过 experiment_run 提交 Python 脚本在隔离容器中运行；容器断网、非 root、资源受限，训练数据在 /train 与 /val（只读），产物写入 /work。',
-      '- 你只能给出 taskId；所有挂载目录由后端按任务派生，你无权指定宿主机路径。',
+      '- 当前研究任务由后端绑定，无需提供 taskId；所有挂载目录由后端确定，你无权切换研究任务或指定宿主机路径。',
       '- 用 experiment_read_artifact 读取产物（如 metrics.json）后再决定下一轮实验；每轮都要基于上一轮的真实结果。',
       '- 用 experiment_status / experiment_list 跟踪执行；失败时先读日志尾部定位原因；需要中止时用 experiment_stop。',
       '- 你没有文件、Shell、子 Agent 等其他工具；不要尝试绕过容器边界，不要尝试联网安装依赖。',
