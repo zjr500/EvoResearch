@@ -16,7 +16,8 @@ import {
 } from './paper-service.js';
 import {parseModelChoice,type SummaryConfiguration} from './model-configuration.js';
 import type { SummaryModel } from './summary-model.js';
-export function knowledgeApi(db:Database.Database,operations:Operations,storageDir:string,model:SummaryModel,models?:SummaryConfiguration) {
+import type { KnowledgeSearch } from './search.js';
+export function knowledgeApi(db:Database.Database,operations:Operations,storageDir:string,model:SummaryModel,models?:SummaryConfiguration,search?:KnowledgeSearch) {
  return async (request:Request,owner:number):Promise<Response>=>{
   try {
    ownerId(owner);
@@ -38,6 +39,13 @@ export function knowledgeApi(db:Database.Database,operations:Operations,storageD
    const body=await objectBody(request);
    const {idempotency_key,...input}=body;
    if(input.model_choice!==undefined)parseModelChoice(input.model_choice);
+   // Synchronous read-only semantic search; deliberately not an async operation.
+   if(request.method==='POST' && path==='/kb/search') {
+    if(!search)throw new KnowledgeError(4009,'Search service unavailable');
+    if(Object.keys(input).some(k=>!['query','top_k'].includes(k)))throw new KnowledgeError(4001,'Only query and top_k are allowed');
+    const data=await search.search(owner,input.query as string,input.top_k===undefined?5:Number(input.top_k));
+    return success(data);
+   }
    let task:()=>Promise<unknown>, operationType:string, fingerprint:unknown=input;
    if(request.method==='PUT' && path==='/models/summary') {
     if(!models)throw new KnowledgeError(4009,'Model service unavailable');
@@ -84,7 +92,7 @@ export function knowledgeApi(db:Database.Database,operations:Operations,storageD
     entryFor(db,owner,id); operationType='entry-edit';
     if(!Object.keys(input).length||Object.keys(input).some(k=>!['title','user_note'].includes(k))) throw new KnowledgeError(4001,'Only title and user_note are editable');
     for(const [k,v] of Object.entries(input)) if(typeof v!=='string'||v.length>30000||(k==='title'&&!v.trim())) throw new KnowledgeError(4001,'Invalid entry field');
-    task=async()=>{ const old=entryFor(db,owner,id); db.prepare('UPDATE kb_entries SET title=?,user_note=?,embedding=NULL WHERE entry_id=? AND owner_id=?').run(input.title??old.title,input.user_note??old.user_note,id,owner); return {...entryFor(db,owner,id),indexed:false}; };
+    task=async()=>{ const old=entryFor(db,owner,id); db.prepare('UPDATE kb_entries SET title=?,user_note=?,embedding=NULL WHERE entry_id=? AND owner_id=?').run(input.title??old.title,input.user_note??old.user_note,id,owner); search?.invalidate(owner,id); return {...entryFor(db,owner,id),indexed:false}; };
    } else throw new KnowledgeError(4004,'Route not found');
    const data=operations.submit(owner,idempotency_key,operationType,{path,input:fingerprint},task,id?String(id):undefined);
    return success(data,'accepted',202);

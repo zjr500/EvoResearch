@@ -18,7 +18,7 @@ export function migrateModuleDirectories(db: Database.Database, rootDir?: string
   if (!existsSync(dirPath)) return;
   const known = (module: string) => BUILTIN_MODULES.has(module) || existsSync(join(dirPath, module));
   const records = db.prepare('SELECT module, version FROM evoresearch_migrations').all() as { module: string; version: number }[];
-  const builtinVersions: Record<string, number[]> = { knowledge: [2, 3, 4], operations: [1], 'local-execution': [1] };
+  const builtinVersions: Record<string, number[]> = { knowledge: [2, 3, 4, 5], operations: [1], 'local-execution': [1] };
   for (const row of records) {
     if (BUILTIN_MODULES.has(row.module)) {
       if (!builtinVersions[row.module].includes(row.version)) throw new Error(`Database contains unrecognized migrations; refusing downgrade (${row.module} v${row.version})`);
@@ -50,7 +50,7 @@ export function migrateDatabase(db: Database.Database) {
   db.pragma('foreign_keys = ON');
   db.transaction(() => {
     const hasLegacy = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='knowledge_migrations'").get();
-    if (hasLegacy && db.prepare('SELECT 1 FROM knowledge_migrations WHERE version > 4').get())
+    if (hasLegacy && db.prepare('SELECT 1 FROM knowledge_migrations WHERE version > 5').get())
       throw new Error('Knowledge schema is newer than this plugin; refusing migration');
     migrateKnowledge(db);
     db.exec(`CREATE TABLE IF NOT EXISTS evoresearch_migrations (
@@ -61,6 +61,7 @@ export function migrateDatabase(db: Database.Database) {
     db.prepare("INSERT OR IGNORE INTO evoresearch_migrations(module,version) VALUES('knowledge',2)").run();
     db.prepare("INSERT OR IGNORE INTO evoresearch_migrations(module,version) VALUES('knowledge',3)").run();
     db.prepare("INSERT OR IGNORE INTO evoresearch_migrations(module,version) VALUES('knowledge',4)").run();
+    db.prepare("INSERT OR IGNORE INTO evoresearch_migrations(module,version) VALUES('knowledge',5)").run();
     migrateOperations(db);
     if(!db.prepare("SELECT 1 FROM evoresearch_migrations WHERE module='local-execution' AND version=1").get()) {
       if(db.prepare("SELECT 1 FROM sqlite_master WHERE name='local_executions'").get())throw new Error('Existing local executions require explicit reconciliation');
