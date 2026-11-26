@@ -25,7 +25,7 @@ test('shared database repeats and reopens without losing paper, entry or operati
   assert.equal((store.db.prepare('SELECT title FROM papers WHERE paper_id=7').get() as any).title,'kept');
   assert.equal((store.db.prepare('SELECT source_id FROM kb_entries WHERE entry_id=8').get() as any).source_id,7);
   assert.equal((store.db.prepare('SELECT status FROM knowledge_operations WHERE id=9').get() as any).status,'成功');
-  assert.equal((store.db.prepare('SELECT count(*) n FROM evoresearch_migrations').get() as any).n,6);
+  assert.equal((store.db.prepare('SELECT count(*) n FROM evoresearch_migrations').get() as any).n,7);
  } finally {store.close();}
 });
 test('adopts deployed knowledge v2 and preserves unrelated member tables',()=>{
