@@ -281,6 +281,17 @@ export function entryFor(db:Database.Database,owner:number,id:number): Record<st
  const sync=db.prepare('SELECT index_status,graph_status FROM knowledge_sync_events WHERE document_id=? AND owner_id=? ORDER BY entry_revision DESC LIMIT 1').get(id,owner) as Record<string,string>|undefined;
  return {...row,content:JSON.parse(row.content as string),index_status:sync?.index_status??'pending',graph_status:sync?.graph_status??'pending'};
 }
+/** Owner-scoped paper list for the UC01 workbench; never exposes file paths or full text. */
+export function listPapers(db:Database.Database,owner:number,query:URLSearchParams) {
+ const limit=Number(query.get('limit')??20), cursor=query.get('cursor');
+ if(!Number.isInteger(limit)||limit<1||limit>100||cursor && !/^\d+$/.test(cursor)) throw new KnowledgeError(4001,'Invalid pagination');
+ const status=query.get('status'), keyword=query.get('keyword')??'';
+ if(status && !['待确认','待补全','已入库'].includes(status)) throw new KnowledgeError(4001,'Invalid status');
+ const rows=db.prepare(`SELECT paper_id,title,authors,year,status,summary_status,summary_error,revision,parse_error,created_at FROM papers
+  WHERE uploader_id=? AND (? IS NULL OR status=?) AND instr(lower(COALESCE(title,'')),lower(?))>0 AND (? IS NULL OR paper_id<?)
+  ORDER BY paper_id DESC LIMIT ?`).all(ownerId(owner),status,status,keyword,cursor,cursor,limit+1) as {paper_id:number}[];
+ const more=rows.length>limit; return {papers:rows.slice(0,limit),nextCursor:more?String(rows[limit-1].paper_id):null};
+}
 export function listEntries(db:Database.Database,owner:number,query:URLSearchParams) {
  const limit=Number(query.get('limit')??20), cursor=query.get('cursor');
  if(!Number.isInteger(limit)||limit<1||limit>100||cursor && !/^\d+$/.test(cursor)) throw new KnowledgeError(4001,'Invalid pagination');

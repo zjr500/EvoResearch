@@ -120,6 +120,28 @@ test('REST async import/confirm/summary/query, ownership rejection, idempotency 
  db.prepare("INSERT INTO knowledge_operations(owner_id,idempotency_key,operation_type,request_digest,status) VALUES(1,'interrupted','summary','x','执行中')").run();
  new Operations(db);assert.equal((db.prepare("SELECT status FROM knowledge_operations WHERE idempotency_key='interrupted'").get() as any).status,'失败');
 }));
+test('paper list and original PDF routes serve the owner and reject others',()=>setup(async(db,dir)=>{
+ const ops=new Operations(db),api=knowledgeApi(db,ops,dir,mock);
+ const call=async(method:string,path:string,body?:unknown,owner=1)=>{const r=await api(new Request('http://localhost'+path,{method,body:body?JSON.stringify(body):undefined}),owner);return r;};
+ const accepted=await (await call('POST','/papers',{idempotency_key:'upload-list',pdf_base64:pdf().toString('base64')})).json() as any;
+ await ops.drain();
+ // List: owner sees the paper, never a file path; other owner sees nothing.
+ const list=await (await call('GET','/papers?status='+encodeURIComponent('待确认'))).json() as any;
+ assert.equal(list.code,0);assert.equal(list.data.papers.length,1);
+ assert.equal(list.data.papers[0].title,'A Study');assert.ok(!('file_path' in list.data.papers[0]));
+ assert.equal((await (await call('GET','/papers',undefined,2)).json() as any).data.papers.length,0);
+ assert.equal((await (await call('GET','/papers?status=%E5%B7%B2%E5%85%A5%E5%BA%93')).json() as any).data.papers.length,0);
+ const id=list.data.papers[0].paper_id;
+ // Original PDF: binary stream for the owner, 4004 for another owner.
+ const original=await call('GET',`/papers/${id}/original`);
+ assert.equal(original.status,200);
+ assert.equal(original.headers.get('content-type'),'application/pdf');
+ const bytes=Buffer.from(await original.arrayBuffer());
+ assert.equal(bytes.subarray(0,5).toString(),'%PDF-');
+ assert.equal(bytes.length,pdf().length);
+ const denied=await (await call('GET',`/papers/${id}/original`,undefined,2)).json() as any;
+ assert.equal(denied.code,4004);
+}));
 test('real DSH model adapter consumes stream, forwards provider/model and rejects malformed model output (mock transport)',async()=>{
  let options:any;const model=dshSummaryModel({async *stream(o){options=o;yield {type:'text-delta',text:JSON.stringify(await mock.generate())};}},'provider','model');
  const result=await model.generate('paper text',new AbortController().signal);assert.equal((result as any).method,'Controlled comparison');assert.equal(options.provider,'provider');assert.equal(options.messages[0].content[0].text,'paper text');

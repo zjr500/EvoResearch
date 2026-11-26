@@ -42,6 +42,10 @@ export function authenticatedHandler(connection:DshConnection,api:(request:Reque
    response=await api(new Request('http://localhost'+req.url,{method:req.method,headers,
     body:['GET','HEAD'].includes(req.method??'GET')?undefined:Buffer.concat(chunks)}),owner);
   }catch(error){req.resume();response=failure(error);}
-  if(!res.headersSent){res.writeHead(response.status,{'content-type':'application/json; charset=utf-8'});res.end(await response.text());}
+  if(!res.headersSent){
+   const contentType=response.headers.get('content-type')??'application/json; charset=utf-8';
+   if(contentType.includes('application/json')){res.writeHead(response.status,{'content-type':contentType});res.end(await response.text());}
+   else{const body=Buffer.from(await response.arrayBuffer());res.writeHead(response.status,{'content-type':contentType,'content-length':body.length});res.end(body);}
+  }
  };
 }

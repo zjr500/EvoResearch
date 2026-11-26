@@ -17,6 +17,8 @@ import {
 import {parseModelChoice,type SummaryConfiguration} from './model-configuration.js';
 import type { SummaryModel } from './summary-model.js';
 import type { KnowledgeSearch } from './search.js';
+import { readFileSync } from 'node:fs';
+import { listPapers } from './paper-service.js';
 export function knowledgeApi(db:Database.Database,operations:Operations,storageDir:string,model:SummaryModel,models?:SummaryConfiguration,search?:KnowledgeSearch) {
  return async (request:Request,owner:number):Promise<Response>=>{
   try {
@@ -24,11 +26,21 @@ export function knowledgeApi(db:Database.Database,operations:Operations,storageD
    const url=new URL(request.url), path=url.pathname.replace(/^\/api/,'');
    const idMatch=path.match(/^\/(?:papers|kb\/entries|kb\/operations)\/(\d+)(?:\/summary)?$/);
    const id=idMatch?resourceId(idMatch[1]):0;
+   // Owner-scoped original PDF stream (binary; outside the JSON envelope).
+   const originalMatch=path.match(/^\/papers\/(\d+)\/original$/);
+   if(request.method==='GET' && originalMatch) {
+    const paper=paperFor(db,owner,resourceId(originalMatch[1]));
+    let bytes:Buffer;
+    try{bytes=readFileSync(paper.file_path);}catch{throw new KnowledgeError(4004,'Original PDF file is missing');}
+    if(bytes.subarray(0,5).toString()!=='%PDF-')throw new KnowledgeError(4009,'Stored file is not a PDF');
+    return new Response(new Uint8Array(bytes),{headers:{'content-type':'application/pdf','content-disposition':`inline; filename="paper-${paper.paper_id}.pdf"`}});
+   }
    if(request.method==='GET') {
     let data:unknown;
     if(path==='/models/summary') { if(!models)throw new KnowledgeError(4009,'Model service unavailable'); data=models.view(owner); }
     else if(path==='/models') { if(!models)throw new KnowledgeError(4009,'Model service unavailable'); if(url.searchParams.get('purpose')!=='summary')throw new KnowledgeError(4001,'This endpoint currently supports summary only'); data={...models.directory() as object,selection:models.view(owner)}; }
     else if(path.startsWith('/models/')) { if(!models)throw new KnowledgeError(4009,'Model service unavailable'); data=await models.models(decodeURIComponent(path.slice(8))); }
+    else if(path==='/papers') data=listPapers(db,owner,url.searchParams);
     else if(path==='/kb/entries') data=listEntries(db,owner,url.searchParams);
     else if(id && path.startsWith('/papers/')) { data=paperView(db,owner,id); }
     else if(id && path.startsWith('/kb/entries/')) data=entryFor(db,owner,id);
