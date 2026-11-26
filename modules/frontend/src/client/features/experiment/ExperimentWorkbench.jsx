@@ -1,45 +1,65 @@
+import { useState } from 'react'
 import { EmptyState } from '../../shared/ui.jsx'
 import { PanelIcon } from '../../shell/PanelIcon.jsx'
 
-// 实验工作台骨架：区域与接入位置已定型。
-// 实验业务后端（任务、执行、事件、候选、认证）由马雨瑶在 UC04—UC11 中实现，
-// 界面业务由胡语晨接入；骨架只提供结构，不展示任何虚构实验数据。
+// 实验工作台：区域布局与真实数据接入位置已定型。
+// 实验业务后端尚未通过 HTTP 开放，各区域只呈现真实状态——没有任务时显示空状态，
+// 不展示任何虚构的任务、日志或指标。
 
-function Region({ icon, title, children, todo }) {
+function Region({ icon, title, children, actions }) {
   return <section className="card exp-region" aria-label={title}>
-    <header><strong><PanelIcon name={icon} />{title}</strong>{todo && <span className="tag" data-tone="neutral">待业务接入</span>}</header>
+    <header><strong><PanelIcon name={icon} />{title}</strong>{actions}</header>
     {children}
   </section>
 }
 
+const monitorTabs = [
+  { id: 'logs', title: '日志', icon: 'process', empty: '任务运行后，实时日志与断线重放内容显示在这里。' },
+  { id: 'metrics', title: '指标', icon: 'metrics', empty: '任务运行后，训练指标曲线与原始数据显示在这里。' },
+  { id: 'artifacts', title: '产物', icon: 'knowledge', empty: '任务结束后，模型、图表等实验产物显示在这里。' },
+]
+
 export function ExperimentWorkbench() {
+  const [tab, setTab] = useState('logs')
+  const active = monitorTabs.find((item) => item.id === tab) ?? monitorTabs[0]
+
   return <div className="exp">
-    <Region icon="process" title="研究任务" todo>
-      <EmptyState icon="process" title="还没有实验任务"
-        description="任务列表与创建入口在此区域；任务表单（UC04）接入后可用。" />
-    </Region>
-    <div className="exp-grid">
-      <Region icon="setup" title="任务配置" todo>
-        <p className="muted">研究目标、数据集划分、模型与轮数上限（UC04）。</p>
+    <div className="exp-columns">
+      <Region icon="process" title="研究任务">
+        <EmptyState icon="process" title="还没有研究任务"
+          description="创建实验任务后，任务列表与运行状态会显示在这里。" />
       </Region>
-      <Region icon="activity" title="实验进展" todo>
-        <p className="muted">当前轮次、进度、暂停与终止入口（UC05/UC11）。</p>
-      </Region>
-      <Region icon="process" title="日志" todo>
-        <p className="muted">实时日志与断线重放（UC06）。</p>
-      </Region>
-      <Region icon="metrics" title="指标" todo>
-        <p className="muted">训练指标曲线与原始数据（UC06/UC08）。</p>
-      </Region>
-      <Region icon="alerts" title="异常" todo>
-        <p className="muted">异常提示、用户响应与恢复状态（UC07）。</p>
-      </Region>
-      <Region icon="graph" title="候选与认证" todo>
-        <p className="muted">候选方案比较、选择与测试集认证结果（UC09/UC10）。</p>
-      </Region>
+      <div className="exp-main">
+        <Region icon="setup" title="任务配置">
+          <EmptyState icon="setup" title="未选择任务"
+            description="选择研究任务后，研究目标、数据集与训练配置显示在这里。" />
+        </Region>
+        <Region icon="activity" title="实验进展">
+          <EmptyState icon="activity" title="暂无运行中的实验"
+            description="任务启动后，训练进度、已运行时间与暂停、终止入口显示在这里。" />
+        </Region>
+        <Region icon={active.icon} title="运行监控"
+          actions={<nav className="exp-tabs" aria-label="运行监控">
+            {monitorTabs.map((item) => (
+              <button type="button" key={item.id} aria-current={tab === item.id ? 'page' : undefined}
+                onClick={() => setTab(item.id)}>{item.title}</button>
+            ))}
+          </nav>}>
+          <EmptyState icon={active.icon} title={`暂无${active.title}`} description={active.empty} />
+        </Region>
+        <Region icon="alerts" title="异常提示">
+          <EmptyState icon="alerts" title="暂无异常"
+            description="任务运行中的异常提示与处理入口会显示在这里。" />
+        </Region>
+        <Region icon="graph" title="候选结果">
+          <EmptyState icon="graph" title="暂无候选方案"
+            description="实验产生的候选方案比较与认证结果会显示在这里。" />
+        </Region>
+        <Region icon="knowledge" title="实验报告">
+          <EmptyState icon="knowledge" title="暂无实验报告"
+            description="任务完成后可在此生成实验报告，并回流到知识库。" />
+        </Region>
+      </div>
     </div>
-    <Region icon="knowledge" title="实验报告" todo>
-      <p className="muted">报告生成与回流知识库入口（UC12，邓玲）。</p>
-    </Region>
   </div>
 }

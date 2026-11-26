@@ -55,8 +55,12 @@ export const workbenchStyles = `
 .imports .file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .exp { display: flex; flex-direction: column; gap: 10px; }
-.exp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.exp-columns { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(260px, 5fr); gap: 10px; align-items: start; }
+@media (max-width: 560px) { .exp-columns { grid-template-columns: 1fr; } }
+.exp-main { display: flex; flex-direction: column; gap: 10px; }
 .exp-region p { margin: 4px 0; }
+.exp-tabs { display: inline-flex; gap: 2px; background: var(--wb-soft); border-radius: 8px; padding: 2px; }
+.exp-tabs button[aria-current="page"] { background: var(--wb-accent); color: #fff; }
 
 .empty-state { text-align: center; padding: 18px 8px; color: color-mix(in srgb, currentColor 60%, transparent); }
 .empty-state p { margin: 4px 0; }

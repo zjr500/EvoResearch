@@ -1,4 +1,5 @@
 import { Workbench } from './Workbench.jsx'
+import { InputDockBadge } from './shell/InputDockBadge.jsx'
 
 export const inject = ['slots', 'sidebarRightTabs']
 
@@ -25,4 +26,11 @@ export function apply(ctx) {
     name: 'sidebar.right.pane.tab',
     key: PANEL_ID,
   }, Workbench)), 'evoresearch: workbench body')
+
+  // 对话输入框徽标：提示知识库已接入，条目数为真实查询结果。
+  ctx.effect(() => ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
+    name: 'conversation.input.dock',
+    id: 'evoresearch-kb-badge',
+    order: 30,
+  }, InputDockBadge)), 'evoresearch: input dock badge')
 }

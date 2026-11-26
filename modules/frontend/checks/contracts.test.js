@@ -70,7 +70,7 @@ test('built DSH client registers the right-sidebar workbench tab type and body',
   const ctx = {
     sidebarRightTabs: { register(definition) { tabTypes.push(definition); return () => {} } },
     slots: {
-      inject(name, register) { assert.equal(name, 'sidebar.right.pane.tab'); return register() },
+      inject(name, register) { assert.ok(['sidebar.right.pane.tab', 'conversation.input.dock'].includes(name)); return register() },
       register(options, component) { seatRegistrations.push({ options, component }); return () => {} },
     },
     effect(run) { return run() },
@@ -80,9 +80,15 @@ test('built DSH client registers the right-sidebar workbench tab type and body',
   assert.equal(tabTypes[0].kind, 'evoresearch.workbench')
   assert.equal(tabTypes[0].keepMounted, true)
   assert.ok(Array.isArray(tabTypes[0].guide) && tabTypes[0].guide.length === 1)
-  assert.equal(seatRegistrations.length, 1)
-  assert.equal(seatRegistrations[0].options.key, tabTypes[0].id)
-  assert.equal(typeof seatRegistrations[0].component, 'function')
+  assert.equal(seatRegistrations.length, 2)
+  const workbenchSeat = seatRegistrations.find(({ options }) => options.name === 'sidebar.right.pane.tab')
+  assert.equal(workbenchSeat.options.key, tabTypes[0].id)
+  assert.equal(typeof workbenchSeat.component, 'function')
+  // 对话输入框的知识库接入徽标：会话作用域槽位按 id 注册。
+  const dockSeat = seatRegistrations.find(({ options }) => options.name === 'conversation.input.dock')
+  assert.ok(dockSeat)
+  assert.equal(typeof dockSeat.options.id, 'string')
+  assert.equal(typeof dockSeat.component, 'function')
   // 旧的六入口整页面板（main + sidebar.panellist）不得再注册。
   assert.ok(!seatRegistrations.some(({ options }) => options.name === 'main'))
 })
