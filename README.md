@@ -30,11 +30,12 @@ EvoResearch 是基于 DeepSeek Harness（DSH）的 AI 自主实验与自进化�
 - 实验执行只跑 CPU；GPU 框架训练尚未验证。
 - Agent 两轮链路用 Mock 规划器验证过工具回路，不等于真实模型的自主实验验收。
 - 知识图谱、实验业务后端（UC04—UC11）尚未通过 HTTP 开放，实验页各区域呈现真实空状态，不展示虚构数据。
-- `modules/remote-ssh/` 是已放弃的 SSH 路线源码，保留但不加载。
 
 ## 构建与测试
 
-运行环境为 Node.js ≥22.19.0、DSH 0.2.1-rc.2。源码位于 `src/`，TypeScript 编译为 ESM；`cordis.patch.yml` 是 DSH bundle 的加载入口。`modules/dialogue/` 随根构建一并编译。
+运行环境为 Node.js ≥22.19.0、DSH 0.2.1-rc.2。源码位于 `src/`，TypeScript 编译为 ESM；`cordis.patch.yml` 是 DSH bundle 的加载入口。`modules/dialogue/` 随根构建一并编译。插件数据库由 `better-sqlite3` 管理，`sqlite-vec` 用于语义检索。
+
+依赖以实际 DSH 0.2.1-rc.2 宿主为准：`dsh-tools` peer 使用 `0.2.1-rc.2`，`schemastery` peer 接受宿主的 `3.18.5`。
 
 ```sh
 npm ci
@@ -51,9 +52,11 @@ dsh plugin --profile evoresearch-dev add .
 dsh --profile evoresearch-dev --dump-config
 ```
 
-配置输出中应出现 `evoresearch-plugin`。也可安装到现有的 `web` profile，再执行 `dsh web --no-open`；在 DSH 对话中调用 `evoresearch_status` 可确认插件加载。开发时先执行 `npm run build`，再启动 DSH。
+配置输出中应出现 `evoresearch-plugin`。开发时先执行 `npm run build`，再启动 DSH。
 
 参照 `.env.example` 将数据库路径设置到启动进程的环境变量；本项目不会自动加载 `.env`。不要提交 `.env`、SQLite 数据库或凭证。
+
+摘要模型默认复用 DSH 的 `agentDefaultModel.currentSelection()` 和 `ctx.llm.stream()`，不读取或管理 API Key。`EVORESEARCH_SUMMARY_PROVIDER` / `EVORESEARCH_SUMMARY_MODEL` 留空即可；同时填写为显式覆盖，只填写一个会报错。配置项见 [.env.example](.env.example)。
 
 ## 快速开始（安装与首次使用）
 
@@ -66,6 +69,10 @@ dsh --profile evoresearch-dev --dump-config
    - 轻量方式：用 fastembed（ONNX，无需 GPU）在本地起一个兼容 `POST /api/embed` 的小服务加载 `nomic-ai/nomic-embed-text-v1.5`，指向同一地址即可；任何返回 `{"embeddings": [[...]]}` 的 Ollama 兼容端点都可使用。
 4. **启动并验证**：`dsh --profile <你的profile>` 启动后打开右侧边栏的 EvoResearch 工作台。首次使用建议按顺序验证：导入一篇 PDF 论文（需 DSH 已登录模型以生成摘要）→ 查看/编辑 → 确认入库 → 知识条目出现 → 语义检索命中 → 对话输入框出现“知识库 · N 条”徽标。
 
+## 当前论文流程（UC01）
+
+选择或继承 DSH 模型 → 上传并生成待确认摘要 → 修改/重新生成 → 确认入库。批量上传采用逐篇 POST 汇总；业务 REST 需要 DSH Web 宿主的认证会话。
+
 ## 成员开发入口
 
 - **新增数据库表**：在 `migrations/modules/<你的模块>/` 添加 `001_*.sql`、`002_*.sql`……版本号从 1 连续递增，禁止改动他人目录与公共迁移文件。
@@ -74,16 +81,12 @@ dsh --profile evoresearch-dev --dump-config
 - **前端**：`modules/frontend/src/client/features/` 下按入口扩展，复用 DSH 原生组件与 CSS 变量，不替换左栏导航与中栏对话。
 - **索引/图谱消费者**：通过 `evoresearchKnowledge.events.claim(owner, 'index' | 'graph')` 领取事件，处理后 `settle`；事件持久，崩溃不会丢。
 
-项目计划采用 10 周增量迭代开发，详见 [项目立项报告 v3.0](docs/项目立项报告_v3.0_20261118.docx)。
+## 项目文档
 
-## 第四周 F1/F2
+- [需求分析](docs/EvoResearch_需求分析.pdf)
+- [项目立项报告 v3.0](docs/项目立项报告_v3.0_20261118.docx)
+- [文档修改规定](docs/文档修改规定.md)
+- [设计示意图](docs/设计示意图/)
+- 每周开发工作安排见 [docs/开发工作安排](docs/开发工作安排/)
 
-历史运行、验收和接口补充记录可在[清理前 main 快照](https://github.com/zjr500/EvoResearch/tree/3019ae6eb40d4d0d50ead81ef6b76dc00931c767/docs/开发工作安排)中查看。业务 REST 需要 DSH Web 宿主的认证会话。
-
-F2 默认复用 DSH 的 `agentDefaultModel.currentSelection()` 和 `ctx.llm.stream()`，不读取或管理 API Key。`.env` 中的 `EVORESEARCH_SUMMARY_PROVIDER` / `EVORESEARCH_SUMMARY_MODEL` 留空即可；同时填写为显式覆盖，只填写一个会报错。配置项见 [.env.example](.env.example)。
-
-## UC01 后端（2026-11-25）
-
-当前论文流程为：选择或继承 DSH 模型 → 上传并生成待确认摘要 → 修改/重新生成 → 确认入库。
-历史 F1/F2 记录中的“先确认、后摘要”不能用于当前 API 调用。
-批量上传采用逐篇 POST 汇总；当前开发依据为最新需求分析、[第五周开发工作安排](docs/开发工作安排/第五周开发工作安排.md)及实际代码。历史 UC01 验收记录保留在上述 Git 快照中。
+项目计划采用 10 周增量迭代开发，详见立项报告。
