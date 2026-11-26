@@ -3,20 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "第4周 F12 - DSH 会话工具接入、模拟知识检索与来源引用",
-  "main": "./dist/src/dsh/index.js",
-  "exports": {
-    ".": "./dist/src/dsh/index.js"
-  },
-  "files": [
-    "dist",
-    "README.md"
-  ],
+  "description": "EvoResearch 知识引用工具与提示词；由宿主插件通过统一知识服务在进程内集成",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "demo": "npm run build && node scripts/demo.mjs",
-    "check": "npm run test && npm run demo",
     "typecheck:host": "tsc -p tsconfig.host.json"
   },
   "engines": {
@@ -41,6 +31,5 @@
   },
   "devDependencies": {
     "typescript": "^5.9.0"
-  },
-  "dsh": {}
+  }
 }

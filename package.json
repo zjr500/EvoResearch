@@ -22,8 +22,7 @@
     "cordis.patch.yml",
     "README.md",
     "migrations",
-    "scripts/migrate.mjs",
-    "scripts/probes/environment.py"
+    "scripts/migrate.mjs"
   ],
   "dsh": {
     "bundle": {

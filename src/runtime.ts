@@ -5,7 +5,6 @@ import {OperationService} from './infrastructure/operations.js';
 import {operationApi} from './infrastructure/operation-api.js';
 import {authenticatedHandler} from './infrastructure/http.js';
 import {PurposeModels} from './infrastructure/models.js';
-import {LocalExecution,type LocalServices} from './infrastructure/local-execution.js';
 import {DockerExecution} from './experiment/docker-execution.js';
 import {CertificationService} from './experiment/certification.js';
 import {ExperimentAgentService} from './experiment/agent-launch.js';
@@ -20,7 +19,6 @@ export function installRuntime(ctx: Context) {
   const store=openDatabase();
   let knowledge:KnowledgeService|undefined;
   let disposeKnowledge:(()=>Promise<void>)|undefined;
-  let local:LocalExecution|undefined;
   let dockerExecution:DockerExecution|undefined;
   let certification:CertificationService|undefined;
   let experimentAgents:ExperimentAgentService|undefined;
@@ -54,11 +52,6 @@ export function installRuntime(ctx: Context) {
    const installed=installKnowledge(scope,store);
    knowledge=installed.knowledge;
    disposeKnowledge=installed.dispose;
-   scope.inject(['subprocess','sandbox','jobs','fs'],nativeScope=>{
-    local=new LocalExecution(store.db,nativeScope as unknown as LocalServices);
-    const current=local;nativeScope.provide('evoresearchLocalExecution',current);
-    nativeScope.effect(()=>()=>current.dispose());
-   });
   }catch(error){disposers.reverse().forEach(fn=>fn());store.close();throw error;}
   scope.effect(()=>async()=>{
    disposers.reverse().forEach(fn=>fn());
@@ -66,7 +59,6 @@ export function installRuntime(ctx: Context) {
     await experimentAgents?.dispose();
     await dockerExecution?.dispose();
     await certification?.dispose();
-    await local?.dispose();
     await disposeKnowledge?.();
    }finally{store.close();}
   });

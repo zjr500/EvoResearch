@@ -1,7 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { MockSearchAdapter } from '../dist/src/adapters/mock-search.js'
-import { HttpSearchAdapter } from '../dist/src/adapters/http-search.js'
+import { MockSearchAdapter } from './mock-search.mjs'
 import { SearchService } from '../dist/src/services/search-service.js'
 import { parseSearchResponse, validateRequest } from '../dist/src/domain/validate.js'
 import { renderCitedAnswer, renderSearchCandidates } from '../dist/src/services/citation-service.js'
@@ -43,30 +42,6 @@ test('来源 URL 约束：拒绝 javascript 协议', () => {
     query: 'x', total: 1, items: [{ id:'a', title:'b', snippet:'c', score:0.7,
       source:{type:'web', title:'x', url:'javascript:alert(1)'} }],
   }), /有效的 HTTP\(S\)/)
-})
-
-test('HTTP 适配层：POST body 与响应字段校验', async () => {
-  let captured
-  const fakeFetch = async (url, init) => {
-    captured = { url, init }
-    return {
-      ok: true, status: 200,
-      json: async () => ({ query: 'LoRA', total: 1, items: [{
-        id:'kb-1', title:'LoRA', snippet:'低秩矩阵', score:0.9,
-        source:{type:'paper',title:'paper',url:'https://example.org/paper'},
-      }] }),
-    }
-  }
-  const adapter = new HttpSearchAdapter('http://127.0.0.1:3000', 1000, fakeFetch)
-  const result = await adapter.search({query:'LoRA',topK:2})
-  assert.equal(captured.url, 'http://127.0.0.1:3000/kb/search')
-  assert.deepEqual(JSON.parse(captured.init.body), {query:'LoRA',top_k:2})
-  assert.equal(result.items[0].id, 'kb-1')
-})
-
-test('HTTP 适配层：错误响应提示清楚', async () => {
-  const adapter = new HttpSearchAdapter('http://localhost:3000',1000, async () => ({ok:false,status:503}))
-  await assert.rejects(adapter.search({query:'RAG',topK:3}), /HTTP 503/)
 })
 
 test('检索结果去重、分数排序', async () => {

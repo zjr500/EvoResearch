@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { SearchService } from '../../modules/dialogue/dist/src/services/search-service.js';
 import { registerKnowledgeTools } from '../../modules/dialogue/dist/src/tools/knowledge-tools.js';
-import { CITATION_PROMPT } from '../../modules/dialogue/dist/src/dsh/index.js';
+import { CITATION_PROMPT } from '../../modules/dialogue/dist/src/tools/knowledge-tools.js';
 import type { SearchAdapter, SearchRequest, SearchResponse } from '../../modules/dialogue/dist/src/domain/types.js';
 import type { KnowledgeService } from '../knowledge/plugin.js';
 

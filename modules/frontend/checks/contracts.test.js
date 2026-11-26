@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises'
 import { runInNewContext } from 'node:vm'
 import { apiBase, createApi, taskPath } from '../src/client/shared/api.js'
 import { mergeEvents, loadHistory } from '../src/client/shared/events.js'
-import { chartLines } from '../src/client/features/metrics/chart.js'
 
 test('API prefix stays on the DSH origin and preserves a proxy mount', () => {
   assert.equal(apiBase('', 'http://localhost:3080/ui/'), 'http://localhost:3080/ui/evoresearch/api/')
@@ -49,15 +48,6 @@ test('event replay sorts duplicate delivery and refuses another task', async () 
   await assert.rejects(() => loadHistory({ request: async () => ({ events: [], next_cursor: 'loop' }) }, 1), /游标重复/)
 })
 
-test('metric lines keep different seeds apart and require a common axis', () => {
-  const series = [{ runId: 1, points: [{ epoch: 2, value: 4, seed: 1 }, { epoch: 1, value: 3, seed: 1 }, { epoch: 1, value: 5, seed: 2 }] }]
-  const lines = chartLines(series)
-  assert.equal(lines.length, 2)
-  assert.deepEqual(lines[0].points.map((point) => point.x), [1, 2])
-  assert.equal(lines[0].axis, 'epoch')
-  assert.deepEqual(chartLines([{ runId: 1, points: [{ epoch: 1, value: 2 }, { global_step: 1, value: 2 }] }]), [])
-})
-
 test('built DSH client registers the right-sidebar workbench tab type and body', async () => {
   let bundle
   const code = await readFile(new URL('../dist/client.js', import.meta.url), 'utf8')
@@ -70,7 +60,7 @@ test('built DSH client registers the right-sidebar workbench tab type and body',
   const ctx = {
     sidebarRightTabs: { register(definition) { tabTypes.push(definition); return () => {} } },
     slots: {
-      inject(name, register) { assert.ok(['sidebar.right.pane.tab', 'conversation.input.dock'].includes(name)); return register() },
+      inject(name, register) { assert.equal(name, 'sidebar.right.pane.tab'); return register() },
       register(options, component) { seatRegistrations.push({ options, component }); return () => {} },
     },
     effect(run) { return run() },
@@ -80,15 +70,11 @@ test('built DSH client registers the right-sidebar workbench tab type and body',
   assert.equal(tabTypes[0].kind, 'evoresearch.workbench')
   assert.equal(tabTypes[0].keepMounted, true)
   assert.ok(Array.isArray(tabTypes[0].guide) && tabTypes[0].guide.length === 1)
-  assert.equal(seatRegistrations.length, 2)
+  assert.equal(seatRegistrations.length, 1)
   const workbenchSeat = seatRegistrations.find(({ options }) => options.name === 'sidebar.right.pane.tab')
   assert.equal(workbenchSeat.options.key, tabTypes[0].id)
   assert.equal(typeof workbenchSeat.component, 'function')
-  // 对话输入框的知识库接入徽标：会话作用域槽位按 id 注册。
-  const dockSeat = seatRegistrations.find(({ options }) => options.name === 'conversation.input.dock')
-  assert.ok(dockSeat)
-  assert.equal(typeof dockSeat.options.id, 'string')
-  assert.equal(typeof dockSeat.component, 'function')
-  // 旧的六入口整页面板（main + sidebar.panellist）不得再注册。
+  // 旧的六入口整页面板（main + sidebar.panellist）与对话输入框徽标均已移除。
   assert.ok(!seatRegistrations.some(({ options }) => options.name === 'main'))
+  assert.ok(!seatRegistrations.some(({ options }) => options.name === 'conversation.input.dock'))
 })

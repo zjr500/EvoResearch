@@ -26,7 +26,6 @@
   },
   "scripts": {
     "build": "node scripts/build-client.mjs",
-    "build:debug": "node scripts/build-client.mjs --debug",
     "prepack": "npm run build",
     "test": "node --test checks/*.test.js"
   },
