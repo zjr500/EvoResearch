@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/evoresearch-hero-v2.png" alt="EvoResearch：AI 自主实验与自进化知识库" width="100%">
+  <img src="assets/evoresearch-hero.png" alt="EvoResearch：AI 自主实验与自进化知识库" width="100%">
 </p>
 
 # EvoResearch
@@ -64,19 +64,14 @@ dsh --profile evoresearch-dev --dump-config
 
 项目计划采用 10 周增量迭代开发，详见 [项目立项报告 v3.0](docs/项目立项报告_v3.0_20261118.docx)。
 
-## 系统架构
-
-![EvoResearch 系统架构](assets/evoresearch-architecture.png)
-
 ## 第四周 F1/F2
 
-运行、接口示例与验证边界见 [F1/F2运行与验收记录](docs/开发工作安排/F1-F2运行与验收记录.md)，新增约定见 [接口契约补充建议](docs/开发工作安排/F1-F2接口契约补充建议.md)。业务REST需要DSH Web宿主的认证会话。
+历史运行、验收和接口补充记录可在[清理前 main 快照](https://github.com/zjr500/EvoResearch/tree/3019ae6eb40d4d0d50ead81ef6b76dc00931c767/docs/开发工作安排)中查看。业务 REST 需要 DSH Web 宿主的认证会话。
 
-F2 默认复用 DSH 的 `agentDefaultModel.currentSelection()` 和 `ctx.llm.stream()`，不读取或管理 API Key。`.env` 中的 `EVORESEARCH_SUMMARY_PROVIDER` / `EVORESEARCH_SUMMARY_MODEL` 留空即可；同时填写为显式覆盖，只填写一个会报错。配置步骤见 [F2默认模型继承验证](docs/开发工作安排/F2默认模型继承验证.md)。
+F2 默认复用 DSH 的 `agentDefaultModel.currentSelection()` 和 `ctx.llm.stream()`，不读取或管理 API Key。`.env` 中的 `EVORESEARCH_SUMMARY_PROVIDER` / `EVORESEARCH_SUMMARY_MODEL` 留空即可；同时填写为显式覆盖，只填写一个会报错。配置项见 [.env.example](.env.example)。
 
 ## UC01 后端（2026-11-25）
 
 当前论文流程为：选择或继承 DSH 模型 → 上传并生成待确认摘要 → 修改/重新生成 → 确认入库。
-旧 F1/F2 文档中的“先确认、后摘要”仅作为历史验收记录保留，不能用于当前 API 调用。
-批量上传采用逐篇 POST 汇总；批量确认、版本冲突、模型配置及旧数据升级规则见
-[UC01 后端实现与验收](docs/开发工作安排/UC01后端实现与验收.md)。本轮未执行付费模型请求。
+历史 F1/F2 记录中的“先确认、后摘要”不能用于当前 API 调用。
+批量上传采用逐篇 POST 汇总；当前开发依据为最新需求分析、[第五周开发工作安排](docs/开发工作安排/第五周开发工作安排.md)及实际代码。历史 UC01 验收记录保留在上述 Git 快照中。

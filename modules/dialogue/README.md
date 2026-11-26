@@ -19,8 +19,6 @@ f12_dengling_week4/
 ├── fixtures/kb-search.mock.json    # 明示的模拟检索数据
 ├── scripts/demo.mjs                # 无 DSH 的最小演示
 ├── tests/search.test.mjs           # node:test 自动测试
-├── docs/INTEGRATION.md             # 在团队 DSH 中加载及交接
-├── docs/PR_DESCRIPTION.md          # PR 内容与未完成项
 ├── docs/verification.log           # 本机无密钥的测试与运行记录
 ├── cordis.patch.example.yml       # 示例挂载配置（需替换绝对路径）
 ├── tsconfig.json                   # 离线构建（极小类型声明）
@@ -63,7 +61,7 @@ kb_cite_sources(query, ids) → 校验 ID 确在当前 query 检索结果中
 
 ## 接入团队 DSH
 
-看 [`docs/INTEGRATION.md`](docs/INTEGRATION.md)。开发时在 DSH 启动层添加 `cordis.patch.example.yml` 对应的插件行，**name 必须替换成绝对路径**。安装后的插件提供两个工具，不自己创建会话系统。
+当前统一插件加载方式见[根目录 README](../../README.md)。历史独立模块接入说明及 PR 描述保留在[清理前 main 快照](https://github.com/zjr500/EvoResearch/tree/3019ae6eb40d4d0d50ead81ef6b76dc00931c767/modules/dialogue/docs)中。
 
 ## 重要边界
 
