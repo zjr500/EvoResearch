@@ -73,4 +73,21 @@ export const workbenchStyles = `
 .debug-control { display: inline-flex; align-items: center; gap: 4px; }
 .settings-card { margin-top: 6px; }
 .source-pill { font-size: 11px; color: color-mix(in srgb, currentColor 55%, transparent); }
+
+/* UC01 workbench: pending papers, semantic hits, citation bar, PDF preview */
+.kb-hits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.pending-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pending-list > li { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; border: 1px solid var(--wb-line); border-radius: 8px; padding: 8px 10px; }
+.pending-check { padding-top: 2px; }
+.pending-main { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 2px; }
+.pending-actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.paper-editor { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--wb-line); padding-top: 8px; margin-top: 4px; }
+.paper-editor label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: color-mix(in srgb, currentColor 65%, transparent); }
+.paper-editor .settings-row label { flex: 1; }
+.paper-editor textarea { font: inherit; color: inherit; background: transparent; border: 1px solid var(--wb-line); border-radius: 6px; padding: 6px 8px; resize: vertical; }
+.pdf-block { display: flex; flex-direction: column; gap: 6px; }
+.pdf-frame { width: 100%; height: 420px; border: 1px solid var(--wb-line); border-radius: 8px; background: #fff; }
+.link-button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--wb-line); border-radius: 6px; padding: 4px 10px; color: inherit; text-decoration: none; }
+.citation-bar { position: sticky; bottom: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; border: 1px solid var(--wb-line); border-radius: 8px; padding: 8px 12px; background: inherit; backdrop-filter: blur(6px); }
+.citation-text { flex: 1; min-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `
