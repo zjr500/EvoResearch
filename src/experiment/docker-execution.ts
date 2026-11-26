@@ -1,116 +1,116 @@
-import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
-import { promisify } from 'node:util';
 import type Database from 'better-sqlite3';
 import { AppError, ownerId } from '../infrastructure/errors.js';
+import { ContainerMonitor, DockerEngine, type ContainerOutcome, type DockerEnvironment } from './docker-engine.js';
+import { isDirectoryEmpty } from './integrity.js';
 
-const execFileAsync = promisify(execFile);
-
-export const DEFAULT_WORKER_IMAGE = 'evoresearch-worker:latest';
-const WINDOWS_DOCKER_BIN = 'C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe';
 const MAX_SCRIPT_BYTES = 256 * 1024;
-const LOG_TAIL_BYTES = 64 * 1024;
 const MAX_TIMEOUT_SECONDS = 3600;
-
-export interface DockerEnvironment {
-  available: boolean; reason?: string;
-  dockerBin?: string; serverVersion?: string; imageId?: string;
-}
+const TASK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+const TERMINAL_STATUSES = new Set(['succeeded', 'failed', 'timeout', 'stopped']);
 
 export interface ExperimentRunRequest {
+  /** Task slug; the backend derives every mount from it. No paths accepted. */
+  taskId: string;
   /** Python source executed as the container entrypoint script. */
   script: string;
-  /** Read-write bind mount, must resolve inside the workspace root. */
-  workDir: string;
-  /** Optional read-only training data mount (target /train). */
-  trainDir?: string;
-  /** Optional read-only validation data mount (target /val). */
-  valDir?: string;
   timeoutSeconds?: number;
   memoryMb?: number;
   cpus?: number;
+  /** Idempotent start: a repeated key returns the existing execution. */
+  idempotencyKey?: string;
 }
 
 export interface ExecutionRecord {
   execution_id: number; owner_id: number; status: string; image: string;
-  container_name: string | null;
+  container_name: string | null; image_id: string | null;
   exit_code: number | null; log_tail: string | null;
   created_at: string; started_at: string | null; finished_at: string | null;
+  deadline: string | null; idempotency_key: string | null;
 }
 
+const RECORD_COLUMNS = 'execution_id,owner_id,status,image,container_name,image_id,exit_code,log_tail,created_at,started_at,finished_at,deadline,idempotency_key';
+
 /**
- * Controlled Docker execution for experiments. Runs only the pinned worker
- * image with network disabled, all capabilities dropped, no privilege
- * escalation, an unprivileged user, and read-only everything except the
- * whitelisted work mount. When any isolation property cannot be guaranteed
- * (no daemon, missing pinned image, mount outside the workspace root) the
- * execution is refused instead of silently degrading.
+ * Controlled Docker execution for experiments.
+ *
+ * Isolation model (server-enforced, not caller-policed):
+ * - Callers name a task, never a path. The backend derives one task directory
+ *   (`<root>/tasks/<taskId>`) and one work directory per execution
+ *   (`work/exec-<id>`), so executions never overlap and can never reach the
+ *   workspace root, other tasks, or the certification root.
+ * - Training data lives in `data/train` and `data/val` under the task
+ *   directory and is mounted read-only; it never sits inside a writable mount.
+ * - Hidden test sets live under the separate certification root, which no
+ *   training container ever mounts.
+ * - The image is digest-pinned at start and the pin is recorded.
+ * - A persistent monitor enforces deadlines from start (not from wait),
+ *   finalizes terminal state only after the container really exited, and
+ *   stops containers on plugin unload. Restart recovery reconciles rows
+ *   against actual container state.
  */
 export class DockerExecution {
-  private readonly image: string;
-  private readonly workspaceRoot: string;
+  readonly tasksRoot: string;
+  private readonly engine: DockerEngine;
+  private readonly monitor: ContainerMonitor;
   private readonly instanceTag = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  private readonly stopRequested = new Set<number>();
-  constructor(private db: Database.Database, options: { workspaceRoot: string; image?: string }) {
-    this.image = options.image ?? DEFAULT_WORKER_IMAGE;
-    this.workspaceRoot = resolve(options.workspaceRoot);
-    mkdirSync(this.workspaceRoot, { recursive: true });
+  private readonly finalizing = new Set<number>();
+
+  constructor(
+    private db: Database.Database,
+    options: { workspaceRoot: string; engine?: DockerEngine; monitor?: ContainerMonitor },
+  ) {
+    this.engine = options.engine ?? new DockerEngine();
+    this.monitor = options.monitor ?? new ContainerMonitor(this.engine);
+    this.tasksRoot = resolve(options.workspaceRoot, 'tasks');
+    mkdirSync(this.tasksRoot, { recursive: true });
   }
 
-  private dockerBin(): string {
-    if (process.env.EVORESEARCH_DOCKER_BIN) return process.env.EVORESEARCH_DOCKER_BIN;
-    if (existsSync(WINDOWS_DOCKER_BIN)) return WINDOWS_DOCKER_BIN;
-    return 'docker';
-  }
-
-  private async docker(args: string[], timeoutMs = 30000): Promise<string> {
-    const { stdout } = await execFileAsync(this.dockerBin(), args, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024, windowsHide: true });
-    return stdout.trim();
-  }
-
-  /** Probe the daemon and pinned image; never throws, reports availability. */
   async environment(): Promise<DockerEnvironment> {
-    const dockerBin = this.dockerBin();
-    let serverVersion: string;
-    try {
-      serverVersion = await this.docker(['version', '--format', '{{.Server.Version}}'], 15000);
-    } catch (error) {
-      return { available: false, reason: `docker daemon unreachable (${error instanceof Error ? error.message.slice(0, 200) : String(error)})`, dockerBin };
-    }
-    try {
-      const imageId = await this.docker(['image', 'inspect', this.image, '--format', '{{.Id}}'], 15000);
-      return { available: true, dockerBin, serverVersion, imageId };
-    } catch {
-      return { available: false, reason: `pinned worker image ${this.image} is not present; refusing to pull or substitute`, dockerBin, serverVersion };
+    return this.engine.environment();
+  }
+
+  private taskIdOf(value: unknown): string {
+    if (typeof value !== 'string' || !TASK_ID_PATTERN.test(value)) throw new AppError(4001, 'taskId must be 1-64 chars of letters, digits, dash or underscore');
+    return value;
+  }
+
+  /** Paths of a task directory; created on demand, always inside the tasks root. */
+  prepareTask(owner: number, taskId: string) {
+    ownerId(owner);
+    const task = this.taskIdOf(taskId);
+    const taskDir = join(this.tasksRoot, task);
+    const paths = {
+      taskDir,
+      workDir: join(taskDir, 'work'),
+      trainDir: join(taskDir, 'data', 'train'),
+      valDir: join(taskDir, 'data', 'val'),
+    };
+    mkdirSync(paths.workDir, { recursive: true });
+    mkdirSync(paths.trainDir, { recursive: true });
+    mkdirSync(paths.valDir, { recursive: true });
+    return paths;
+  }
+
+  /** Stage dataset content into a task's read-only data dirs (host-side copy). */
+  stageTaskData(owner: number, taskId: string, source: { train?: string; val?: string }): void {
+    const paths = this.prepareTask(owner, taskId);
+    for (const [role, target] of [['train', paths.trainDir], ['val', paths.valDir]] as const) {
+      const src = source[role];
+      if (!src) continue;
+      const resolved = realpathSync(resolve(src));
+      if (!statSync(resolved).isDirectory()) throw new AppError(4001, `${role} source must be a directory`);
+      cpSync(resolved, target, { recursive: true });
     }
   }
 
-  private async requireEnvironment(): Promise<DockerEnvironment> {
-    const environment = await this.environment();
-    if (!environment.available) throw new AppError(4009, `Docker execution unavailable: ${environment.reason}`);
-    return environment;
-  }
-
-  /** Resolve a mount path and prove it stays inside the workspace root. */
-  private mountSource(dir: string, role: string, create = false): string {
-    if (typeof dir !== 'string' || !dir.trim()) throw new AppError(4001, `${role} directory required`);
-    const target = resolve(dir);
-    if (!existsSync(target)) {
-      if (!create) throw new AppError(4001, `${role} directory does not exist: ${target}`);
-      mkdirSync(target, { recursive: true });
-    }
-    const resolved = realpathSync(target);
-    if (resolved !== this.workspaceRoot && !resolved.startsWith(this.workspaceRoot + sep))
-      throw new AppError(4001, `${role} directory must stay inside ${this.workspaceRoot}`);
-    return resolved;
-  }
-
-  /** Start an isolated run; returns the execution id immediately. */
+  /** Start an isolated run. Idempotent on (owner, idempotencyKey). */
   async start(owner: number, request: ExperimentRunRequest): Promise<number> {
     ownerId(owner);
-    if (!request || typeof request.script !== 'string' || !request.script.trim()) throw new AppError(4001, 'script required');
+    const taskId = this.taskIdOf(request.taskId);
+    if (typeof request.script !== 'string' || !request.script.trim()) throw new AppError(4001, 'script required');
     if (Buffer.byteLength(request.script) > MAX_SCRIPT_BYTES) throw new AppError(4001, 'script too large');
     const timeoutSeconds = request.timeoutSeconds ?? 600;
     if (!Number.isSafeInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > MAX_TIMEOUT_SECONDS) throw new AppError(4001, `timeoutSeconds must be 1..${MAX_TIMEOUT_SECONDS}`);
@@ -118,29 +118,44 @@ export class DockerExecution {
     if (!Number.isSafeInteger(memoryMb) || memoryMb < 64 || memoryMb > 8192) throw new AppError(4001, 'memoryMb must be 64..8192');
     const cpus = request.cpus ?? 1;
     if (typeof cpus !== 'number' || cpus < 0.5 || cpus > 8) throw new AppError(4001, 'cpus must be 0.5..8');
-    const workDir = this.mountSource(request.workDir, 'work', true);
-    const trainDir = request.trainDir ? this.mountSource(request.trainDir, 'train') : undefined;
-    const valDir = request.valDir ? this.mountSource(request.valDir, 'val') : undefined;
-    await this.requireEnvironment();
-
-    const inserted = this.db.prepare(`INSERT INTO experiment_executions(owner_id,status,image,request_json,started_at)
-      VALUES(?,?,?,?,CURRENT_TIMESTAMP)`).run(owner, 'running', this.image,
-      JSON.stringify({ workDir, trainDir, valDir, timeoutSeconds, memoryMb, cpus, scriptBytes: Buffer.byteLength(request.script) }));
-    const executionId = Number(inserted.lastInsertRowid);
+    const idempotencyKey = request.idempotencyKey === undefined ? null : String(request.idempotencyKey);
+    if (idempotencyKey !== null && (idempotencyKey.length < 1 || idempotencyKey.length > 200)) throw new AppError(4001, 'idempotencyKey too long');
+    if (idempotencyKey) {
+      const existing = this.db.prepare('SELECT execution_id FROM experiment_executions WHERE owner_id=? AND idempotency_key=?').get(owner, idempotencyKey) as { execution_id: number } | undefined;
+      if (existing) return existing.execution_id;
+    }
+    const environment = await this.engine.requireEnvironment();
+    const paths = this.prepareTask(owner, taskId);
+    const deadline = new Date(Date.now() + timeoutSeconds * 1000);
+    let executionId: number;
+    try {
+      executionId = Number(this.db.prepare(`INSERT INTO experiment_executions(owner_id,status,image,image_id,request_json,started_at,deadline,idempotency_key)
+        VALUES(?,?,?,?,?,CURRENT_TIMESTAMP,?,?)`).run(owner, 'running', this.engine.image, environment.imageId ?? null,
+        JSON.stringify({ taskId, timeoutSeconds, memoryMb, cpus, scriptBytes: Buffer.byteLength(request.script) }),
+        deadline.toISOString(), idempotencyKey).lastInsertRowid);
+    } catch (error) {
+      if (idempotencyKey && String(error).includes('UNIQUE')) {
+        const raced = this.db.prepare('SELECT execution_id FROM experiment_executions WHERE owner_id=? AND idempotency_key=?').get(owner, idempotencyKey) as { execution_id: number };
+        return raced.execution_id;
+      }
+      throw error;
+    }
     const container = this.containerName(executionId);
     try {
-      await writeFile(join(workDir, '.evoresearch-entry.py'), request.script, 'utf8');
-      const args = ['run', '-d', '--name', container, '--pull', 'never',
-        '--network', 'none', '--read-only', '--cap-drop', 'ALL',
-        '--security-opt', 'no-new-privileges', '--user', '65534:65534',
-        '--pids-limit', '64', '--memory', `${memoryMb}m`, '--cpus', String(cpus),
-        '--tmpfs', '/tmp:rw,noexec,nosuid,size=32m',
-        '--mount', `type=bind,source=${workDir},target=/work`,
-        ...(trainDir ? ['--mount', `type=bind,source=${trainDir},target=/train,readonly`] : []),
-        ...(valDir ? ['--mount', `type=bind,source=${valDir},target=/val,readonly`] : []),
-        '--workdir', '/work', '--entrypoint', 'python', this.image, '-u', '.evoresearch-entry.py'];
-      await this.docker(args, 60000);
+      const execDir = join(paths.workDir, `exec-${executionId}`);
+      mkdirSync(execDir, { recursive: true });
+      await writeFile(join(execDir, '.evoresearch-entry.py'), request.script, 'utf8');
+      await this.engine.startIsolated({
+        name: container, imageId: environment.imageId!,
+        workMount: { source: realpathSync(execDir), target: '/work' },
+        extraMounts: [
+          ...(isDirectoryEmpty(paths.trainDir) ? [] : [{ source: realpathSync(paths.trainDir), target: '/train', readonly: true }]),
+          ...(isDirectoryEmpty(paths.valDir) ? [] : [{ source: realpathSync(paths.valDir), target: '/val', readonly: true }]),
+        ],
+        limits: { memoryMb, cpus }, command: ['-u', '.evoresearch-entry.py'],
+      });
       this.db.prepare('UPDATE experiment_executions SET container_name=? WHERE execution_id=?').run(container, executionId);
+      this.track(executionId, container, deadline.getTime());
       return executionId;
     } catch (error) {
       this.db.prepare(`UPDATE experiment_executions SET status='failed',log_tail=?,finished_at=CURRENT_TIMESTAMP WHERE execution_id=?`)
@@ -150,65 +165,123 @@ export class DockerExecution {
   }
 
   private containerName(executionId: number): string {
-    // Unique per service instance so parallel test suites or plugin reloads
-    // never collide on the shared daemon.
     return `evoresearch-exec-${this.instanceTag}-${executionId}`;
   }
 
-  private async inspect(container: string, format: string): Promise<string> {
-    return this.docker(['inspect', '--format', format, container], 15000);
+  private track(executionId: number, container: string, deadlineMs: number): void {
+    this.monitor.track({
+      name: container, deadlineMs,
+      onExit: async (outcome) => { await this.finalize(executionId, container, outcome); },
+    });
   }
 
-  /** Wait for completion or timeout; stops the container past its deadline. */
-  async wait(executionId: number, pollMs = 500): Promise<ExecutionRecord> {
-    const row = this.record(executionId);
-    if (row.status !== 'running') return row;
-    const request = JSON.parse(this.requestJson(executionId));
-    const deadline = Date.now() + request.timeoutSeconds * 1000;
-    const container = row.container_name ?? this.containerName(executionId);
-    let running = true;
-    while (running && Date.now() < deadline) {
-      await new Promise((resolve) => setTimeout(resolve, pollMs));
-      running = (await this.inspect(container, '{{.State.Running}}')) === 'true';
-    }
-    let status = 'succeeded';
-    if (running || this.stopRequested.has(executionId)) {
-      await this.docker(['stop', '--time', '2', container], 30000).catch(() => '');
-      status = running ? 'timeout' : 'stopped';
-      this.stopRequested.delete(executionId);
-    }
-    const exitCode = Number(await this.inspect(container, '{{.State.ExitCode}}').catch(() => '-1'));
-    if (status === 'succeeded' && exitCode !== 0) status = 'failed';
-    let logTail = '';
+  /** Finalize only after the container really exited; never trusts the row alone. */
+  private async finalize(executionId: number, container: string, outcome: ContainerOutcome): Promise<void> {
+    if (this.finalizing.has(executionId)) return;
+    this.finalizing.add(executionId);
     try {
-      const { stdout, stderr } = await execFileAsync(this.dockerBin(), ['logs', container], { timeout: 15000, maxBuffer: 16 * 1024 * 1024, windowsHide: true });
-      logTail = (stdout + (stderr ? `\n[stderr]\n${stderr}` : '')).slice(-LOG_TAIL_BYTES);
-    } catch { logTail = '(logs unavailable)'; }
-    await this.docker(['rm', '-f', container], 15000).catch(() => '');
-    this.db.prepare(`UPDATE experiment_executions SET status=?,exit_code=?,log_tail=?,finished_at=CURRENT_TIMESTAMP WHERE execution_id=?`)
-      .run(status, exitCode, logTail, executionId);
-    return this.record(executionId);
+      const exitCode = await this.engine.exitCode(container);
+      const logTail = await this.engine.logs(container);
+      await this.engine.remove(container);
+      const status = outcome === 'timeout' ? 'timeout' : outcome === 'stopped' ? 'stopped' : exitCode === 0 ? 'succeeded' : 'failed';
+      this.db.prepare(`UPDATE experiment_executions SET status=?,exit_code=?,log_tail=?,finished_at=CURRENT_TIMESTAMP WHERE execution_id=? AND status='running'`)
+        .run(status, exitCode, logTail, executionId);
+    } finally {
+      this.finalizing.delete(executionId);
+    }
   }
 
-  /** Convenience: start and wait. */
-  async run(owner: number, request: ExperimentRunRequest): Promise<ExecutionRecord> {
-    return this.wait(await this.start(owner, request));
+  /** Reconcile running rows with actual containers after a host restart. */
+  async recover(): Promise<void> {
+    const rows = this.db.prepare(`SELECT execution_id,container_name,deadline FROM experiment_executions WHERE status='running'`).all() as { execution_id: number; container_name: string | null; deadline: string | null }[];
+    for (const row of rows) {
+      const container = row.container_name ?? this.containerName(row.execution_id);
+      const running = await this.engine.runningState(container);
+      if (running === true) {
+        this.track(row.execution_id, container, row.deadline ? Date.parse(row.deadline) : Date.now() + 60000);
+      } else if (running === false) {
+        await this.finalize(row.execution_id, container, 'exited');
+      } else {
+        this.db.prepare(`UPDATE experiment_executions SET status='failed',log_tail=?,finished_at=CURRENT_TIMESTAMP WHERE execution_id=? AND status='running'`)
+          .run('container lost during host restart', row.execution_id);
+      }
+    }
   }
 
-  /** Request an early stop; the wait loop finalizes status as 'stopped'. */
-  async stop(executionId: number): Promise<void> {
-    const row = this.record(executionId);
-    if (row.status !== 'running') throw new AppError(4009, 'Execution is not running');
-    this.stopRequested.add(executionId);
-    await this.docker(['stop', '--time', '2', row.container_name ?? this.containerName(executionId)], 30000).catch(() => '');
+  /** Owner-scoped record read; other owners' executions do not exist. */
+  record(owner: number, executionId: number): ExecutionRecord {
+    ownerId(owner);
+    const row = this.db.prepare(`SELECT ${RECORD_COLUMNS} FROM experiment_executions WHERE execution_id=? AND owner_id=?`).get(executionId, owner) as ExecutionRecord | undefined;
+    if (!row) throw new AppError(4004, 'Execution not found');
+    return row;
   }
 
-  /** Read a text artifact from a finished execution's work mount, path-escape safe. */
-  readArtifact(executionId: number, relativePath: string, maxBytes = 512 * 1024): string {
-    const record = this.record(executionId);
-    if (record.status === 'running' || record.status === 'queued') throw new AppError(4009, 'Execution is still running');
+  list(owner: number, limit = 50, taskId?: string): ExecutionRecord[] {
+    ownerId(owner);
+    const rows = this.db.prepare(`SELECT ${RECORD_COLUMNS} FROM experiment_executions WHERE owner_id=? ORDER BY execution_id DESC LIMIT ?`).all(owner, limit) as ExecutionRecord[];
+    if (taskId === undefined) return rows;
+    const task = this.taskIdOf(taskId);
+    return rows.filter((row) => this.requestTaskId(row.execution_id) === task);
+  }
+
+  /** Live logs for running containers, stored tail once finished. */
+  async logs(owner: number, executionId: number): Promise<string> {
+    const row = this.record(owner, executionId);
+    if (TERMINAL_STATUSES.has(row.status)) return row.log_tail ?? '(no logs)';
+    return this.engine.logs(row.container_name ?? this.containerName(executionId));
+  }
+
+  /** Cooperative cancel: the monitor stops the container and finalizes as 'stopped'. */
+  async cancel(owner: number, executionId: number): Promise<void> {
+    const row = this.record(owner, executionId);
+    if (TERMINAL_STATUSES.has(row.status)) return;
+    const container = row.container_name ?? this.containerName(executionId);
+    this.monitor.requestStop(container);
+    // The monitor owns finalization; wait for the row to settle so callers
+    // never observe a half-canceled execution.
+    let deadline = Date.now() + 30000;
+    while (!TERMINAL_STATUSES.has(this.record(owner, executionId).status) && Date.now() < deadline)
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    if (!TERMINAL_STATUSES.has(this.record(owner, executionId).status)) {
+      // Fallback: enforce directly, then wait out any in-flight finalize.
+      await this.engine.stop(container);
+      await this.finalize(executionId, container, 'stopped');
+      deadline = Date.now() + 15000;
+      while (!TERMINAL_STATUSES.has(this.record(owner, executionId).status) && Date.now() < deadline)
+        await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
+
+  /** Wait until terminal state; the monitor drives finalization, this only observes. */
+  async wait(owner: number, executionId: number, pollMs = 500): Promise<ExecutionRecord> {
+    const first = this.record(owner, executionId);
+    const ceiling = first.deadline ? Date.parse(first.deadline) + 60000 : Date.now() + 660000;
+    let row = first;
+    while (!TERMINAL_STATUSES.has(row.status)) {
+      if (Date.now() > ceiling) throw new AppError(4009, 'execution monitor did not finalize in time');
+      await new Promise((resolve) => setTimeout(resolve, pollMs));
+      row = this.record(owner, executionId);
+    }
+    return row;
+  }
+
+  /** Start, wire an optional abort signal to cancel, and wait. */
+  async run(owner: number, request: ExperimentRunRequest, signal?: AbortSignal): Promise<ExecutionRecord> {
+    if (signal?.aborted) throw new AppError(4009, 'execution canceled before start');
+    const executionId = await this.start(owner, request);
+    if (signal) {
+      if (signal.aborted) await this.cancel(owner, executionId);
+      else signal.addEventListener('abort', () => void this.cancel(owner, executionId), { once: true });
+    }
+    return this.wait(owner, executionId);
+  }
+
+  /** Read a text artifact from a finished execution's own work directory. */
+  readArtifact(owner: number, executionId: number, relativePath: string, maxBytes = 512 * 1024): string {
+    const row = this.record(owner, executionId);
+    if (!TERMINAL_STATUSES.has(row.status)) throw new AppError(4009, 'Execution is still running');
     if (typeof relativePath !== 'string' || !relativePath.trim() || relativePath.includes('\0')) throw new AppError(4001, 'artifact path required');
-    const workDir = realpathSync(resolve(JSON.parse(this.requestJson(executionId)).workDir));
+    const workDir = realpathSync(this.execWorkDir(executionId));
     const target = realpathSync(resolve(workDir, relativePath));
     if (target !== workDir && !target.startsWith(workDir + sep)) throw new AppError(4001, 'artifact path must stay inside the execution work directory');
     const size = statSync(target).size;
@@ -216,18 +289,22 @@ export class DockerExecution {
     return readFileSync(target, 'utf8');
   }
 
-  record(executionId: number): ExecutionRecord {
-    const row = this.db.prepare('SELECT execution_id,owner_id,status,image,container_name,exit_code,log_tail,created_at,started_at,finished_at FROM experiment_executions WHERE execution_id=?').get(executionId) as ExecutionRecord | undefined;
+  /** Host-side path of an execution's work directory (snapshots, tests). */
+  execWorkDir(executionId: number): string {
+    const row = this.db.prepare('SELECT request_json FROM experiment_executions WHERE execution_id=?').get(executionId) as { request_json: string } | undefined;
     if (!row) throw new AppError(4004, 'Execution not found');
-    return row;
+    const taskId = JSON.parse(row.request_json).taskId as string;
+    return join(this.tasksRoot, taskId, 'work', `exec-${executionId}`);
   }
 
-  list(owner: number, limit = 50): ExecutionRecord[] {
-    ownerId(owner);
-    return this.db.prepare('SELECT execution_id,owner_id,status,image,container_name,exit_code,log_tail,created_at,started_at,finished_at FROM experiment_executions WHERE owner_id=? ORDER BY execution_id DESC LIMIT ?').all(owner, limit) as ExecutionRecord[];
+  private requestTaskId(executionId: number): string | undefined {
+    const row = this.db.prepare('SELECT request_json FROM experiment_executions WHERE execution_id=?').get(executionId) as { request_json: string } | undefined;
+    return row ? (JSON.parse(row.request_json).taskId as string) : undefined;
   }
 
-  private requestJson(executionId: number): string {
-    return (this.db.prepare('SELECT request_json FROM experiment_executions WHERE execution_id=?').get(executionId) as { request_json: string }).request_json;
+  /** Plugin unload: stop running containers, then stop monitoring. */
+  async dispose(): Promise<void> {
+    await this.monitor.stopAll();
+    this.monitor.dispose();
   }
 }

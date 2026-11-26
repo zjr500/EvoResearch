@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { test, before } from 'node:test';
+import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,14 +19,16 @@ const db = new Database(':memory:');
 migrateDatabase(db);
 const root = mkdtempSync(join(tmpdir(), 'evo-agent-'));
 const execution = new DockerExecution(db, { workspaceRoot: root });
+after(async () => { await execution.dispose(); });
 
-const tools = new Map<string, { execute(args: any): Promise<string> }>();
+const tools = new Map<string, { execute(args: any, exec: any): Promise<string> }>();
 let promptText = '';
 const fakeCtx: any = {
   tools: { register: (tool: any) => { tools.set(tool.name, tool); return () => tools.delete(tool.name); } },
   systemPrompt: { section: (options: any) => { promptText = options.text; return () => { promptText = ''; }; } },
 };
-registerExperimentTools(fakeCtx, execution, root, 1);
+registerExperimentTools(fakeCtx, execution, 1);
+const execContext = () => ({ signal: new AbortController().signal });
 
 let available = false;
 let unavailableReason = '';
@@ -34,12 +36,14 @@ before(async () => {
   const environment = await execution.environment();
   available = environment.available;
   unavailableReason = environment.reason ?? '';
-  mkdirSync(join(root, 'data/train'), { recursive: true });
-  // Two clearly separated clusters; with one gradient step the model cannot
-  // separate them yet, with 300 it reaches perfect accuracy deterministically.
+  // Two clearly separated clusters; with zero gradient steps the model cannot
+  // separate them, with 300 it reaches perfect accuracy deterministically.
+  const source = join(root, 'staged-train');
+  mkdirSync(source, { recursive: true });
   const x = [[-1.2], [-1.0], [-0.8], [-0.6], [0.6], [0.8], [1.0], [1.2]];
   const y = [0, 0, 0, 0, 1, 1, 1, 1];
-  writeFileSync(join(root, 'data/train/data.json'), JSON.stringify({ x, y }));
+  writeFileSync(join(source, 'data.json'), JSON.stringify({ x, y }));
+  execution.stageTaskData(1, 'mock-chain', { train: source });
 });
 
 const scriptFor = (iterations: number) => `
@@ -58,9 +62,13 @@ print('accuracy', acc)
 `;
 
 test('experiment tools and system prompt are registered', () => {
-  assert.deepEqual([...tools.keys()].sort(), ['experiment_list', 'experiment_read_artifact', 'experiment_run', 'experiment_status']);
+  assert.deepEqual([...tools.keys()].sort(), ['experiment_list', 'experiment_read_artifact', 'experiment_run', 'experiment_status', 'experiment_stop']);
   assert.match(promptText, /experiment_run/);
   assert.match(promptText, /如实报告状态/);
+  // The prompt must state the whitelist boundary honestly: no other tools,
+  // no path control, certification not exposed to the agent.
+  assert.match(promptText, /没有文件、Shell、子 Agent/);
+  assert.match(promptText, /认证.*不向你开放/);
 });
 
 test('mock planner improves over two real isolated rounds', { timeout: 300000 }, async (t) => {
@@ -77,23 +85,27 @@ test('mock planner improves over two real isolated rounds', { timeout: 300000 },
   const executions: number[] = [];
   for (let round = 1; round <= 2; round++) {
     const output = await runTool.execute({
-      script: scriptFor(iterations), workDir: `round${round}/work`, trainDir: 'data/train', timeoutSeconds: 120,
-    });
+      taskId: 'mock-chain', script: scriptFor(iterations), timeoutSeconds: 120,
+    }, execContext());
     assert.match(output, /状态：succeeded/, output);
     const executionId = Number(output.match(/执行 #(\d+)/)![1]);
     executions.push(executionId);
-    const metrics = JSON.parse(await readTool.execute({ execution_id: executionId, path: 'metrics.json' }));
+    const metrics = JSON.parse(await readTool.execute({ execution_id: executionId, path: 'metrics.json' }, execContext()));
     accuracy = metrics.accuracy;
     if (accuracy >= 0.95) break;
     iterations = 300; // mock revision based on the observed artifact
   }
   assert.equal(executions.length, 2, 'mock planner needed exactly two rounds');
   assert.equal(accuracy, 1);
-  const listing = await listTool.execute({ limit: 10 });
+  const listing = await listTool.execute({ limit: 10, taskId: 'mock-chain' }, execContext());
   for (const id of executions) assert.match(listing, new RegExp(`#${id} succeeded`));
 });
 
-test('tools reject paths outside the experiments workspace', { timeout: 60000 }, async (t) => {
+test('tools reject traversal taskIds and never accept host paths', { timeout: 60000 }, async (t) => {
   if (!available) { t.skip(unavailableReason); return; }
-  await assert.rejects(() => tools.get('experiment_run')!.execute({ script: 'print(1)', workDir: '../outside' }), /相对路径/);
+  const runTool = tools.get('experiment_run')!;
+  await assert.rejects(() => runTool.execute({ taskId: '../outside', script: 'print(1)' }, execContext()), /taskId/);
+  // No path parameters exist on the tool surface at all.
+  const parameters = Object.keys((tools.get('experiment_run') as any).parameters ?? {});
+  for (const key of parameters) assert.doesNotMatch(key, /path|dir|work/i, `tool must not accept path-like parameter ${key}`);
 });

@@ -1,3 +1,18 @@
 - insert:
     - id: evoresearch
       name: evoresearch-plugin
+    # Restricted experiment agent preset: the ONLY composition that mounts the
+    # experiment_* tool surface (src/experiment/preset-plugin.ts). Ordinary
+    # chat sessions never load that module, so experiment tools cannot leak
+    # into general conversations, and this preset carries no file, shell, or
+    # subagent tools.
+    - id: preset-evoresearch-experiment
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: evoresearch-experiment
+        name: EvoResearch Experiment
+        description: Isolated experiment agent — experiment tools only, no file/shell/subagent access.
+        order: 90
+        plugins:
+          - id: evoresearch-experiment-tools
+            name: evoresearch-plugin/experiment-preset
