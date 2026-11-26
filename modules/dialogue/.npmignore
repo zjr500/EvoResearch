@@ -1,0 +1,4 @@
+# npm pack must ship the compiled dialogue runtime (the root plugin imports
+# modules/dialogue/dist at runtime). This file overrides the sibling
+# .gitignore's dist/ rule for npm only; git still ignores the build output.
+!dist/
