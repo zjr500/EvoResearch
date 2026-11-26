@@ -29,5 +29,9 @@ export function migrateKnowledge(db: Database.Database) {
    db.exec(readFileSync(new URL('../../migrations/knowledge/005_public_services.sql', import.meta.url),'utf8'));
    db.prepare('INSERT INTO knowledge_migrations VALUES(5)').run();
   }
+  if (!db.prepare('SELECT 1 FROM knowledge_migrations WHERE version=6').get()) {
+   db.exec(readFileSync(new URL('../../migrations/knowledge/006_sync_consistency.sql', import.meta.url),'utf8'));
+   db.prepare('INSERT INTO knowledge_migrations VALUES(6)').run();
+  }
  })();
 }

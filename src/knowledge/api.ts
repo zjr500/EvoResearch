@@ -92,7 +92,13 @@ export function knowledgeApi(db:Database.Database,operations:Operations,storageD
     entryFor(db,owner,id); operationType='entry-edit';
     if(!Object.keys(input).length||Object.keys(input).some(k=>!['title','user_note'].includes(k))) throw new KnowledgeError(4001,'Only title and user_note are editable');
     for(const [k,v] of Object.entries(input)) if(typeof v!=='string'||v.length>30000||(k==='title'&&!v.trim())) throw new KnowledgeError(4001,'Invalid entry field');
-    task=async()=>{ const old=entryFor(db,owner,id); db.prepare('UPDATE kb_entries SET title=?,user_note=?,embedding=NULL WHERE entry_id=? AND owner_id=?').run(input.title??old.title,input.user_note??old.user_note,id,owner); search?.invalidate(owner,id); return {...entryFor(db,owner,id),indexed:false}; };
+    task=async()=>{ const old=entryFor(db,owner,id); db.transaction(()=>{
+     db.prepare('UPDATE kb_entries SET title=?,user_note=?,embedding=NULL WHERE entry_id=? AND owner_id=?').run(input.title??old.title,input.user_note??old.user_note,id,owner);
+     // An edit changes what downstream consumers indexed/graphed: publish a
+     // new-revision event instead of leaving only a local vector invalidation.
+     db.prepare(`INSERT INTO knowledge_sync_events(document_id,owner_id,entry_revision,event_type)
+      VALUES(?,?,(SELECT COALESCE(MAX(entry_revision),0)+1 FROM knowledge_sync_events WHERE document_id=?),'entry-updated')`).run(id,owner,id);
+    })(); search?.invalidate(owner,id); return {...entryFor(db,owner,id),indexed:false}; };
    } else throw new KnowledgeError(4004,'Route not found');
    const data=operations.submit(owner,idempotency_key,operationType,{path,input:fingerprint},task,id?String(id):undefined);
    return success(data,'accepted',202);

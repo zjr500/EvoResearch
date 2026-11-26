@@ -69,6 +69,45 @@ test('semantic search ranks owner entries and isolates other owners', async () =
   db.close();
 });
 
+test('owner-scoped KNN cannot be starved by other owners crowding a global top-k', async () => {
+  const db = setup();
+  // Owner 2 floods the index with vectors that are all closer to the query
+  // than owner 1's only entry. A global top-k window would crowd owner 1 out
+  // entirely; the owner partition key must not.
+  for (let i = 0; i < 40; i++) insertEntry(db, 2, `Graph note ${i}`, { abstract: 'graph neural' }, 100 + i);
+  insertEntry(db, 1, 'Sensor-only note', { abstract: 'sensor' }, 201);
+  const search = new KnowledgeSearch(db, fakeProvider);
+  const result = await search.search(1, 'graph neural', 5);
+  assert.equal(result.total, 1);
+  assert.equal(result.items[0].title, 'Sensor-only note');
+  db.close();
+});
+
+test('entry edit publishes an entry-updated event with an incremented revision', async () => {
+  const db = setup();
+  const id = insertEntry(db, 1, 'Battery catalyst screening', { abstract: 'catalyst' }, 41);
+  db.prepare('INSERT INTO knowledge_sync_events(document_id,owner_id) VALUES(?,?)').run(id, 1);
+  const ops = new Operations(db);
+  const api = knowledgeApi(db, ops, mkdtempSync(join(tmpdir(), 'evo-papers-')), {} as any, undefined, new KnowledgeSearch(db, fakeProvider));
+  const response = await api(new Request(`http://localhost/kb/entries/${id}`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ title: 'Battery catalyst screening (revised)', idempotency_key: 'edit-1' }),
+  }), 1);
+  assert.equal(response.status, 202);
+  await ops.drain();
+  const events = db.prepare("SELECT event_type, entry_revision FROM knowledge_sync_events WHERE document_id=? ORDER BY entry_revision").all(id) as { event_type: string; entry_revision: number }[];
+  assert.deepEqual(events, [
+    { event_type: 'entry-confirmed', entry_revision: 1 },
+    { event_type: 'entry-updated', entry_revision: 2 },
+  ]);
+  // The updated event is claimable by both channels with the new revision.
+  const claimed = claimKnowledgeEvents(db, 1, 'index') as any[];
+  assert.equal(claimed.length, 2);
+  assert.equal(claimed[1].entry_revision, 2);
+  assert.equal(claimed[1].event_type, 'entry-updated');
+  db.close();
+});
+
 test('editing an entry invalidates its vector so reindex picks the change up', async () => {
   const db = setup();
   const id = insertEntry(db, 1, 'Battery catalyst screening', { abstract: 'catalyst' }, 21);
@@ -86,14 +125,37 @@ test('report publication is idempotent and emits one sync event', () => {
   const db = setup();
   const first = publishReport(db, 1, { reportId: 7, title: '实验报告 A', content: { conclusion: 'ok' } });
   assert.equal(first.duplicated, false);
-  const second = publishReport(db, 1, { reportId: 7, title: '实验报告 A 改', content: { conclusion: 'changed' } });
+  // Identical republish is a true duplicate; changed content under the same
+  // report ID is a conflict, never a silent keep-old (P2-2).
+  const second = publishReport(db, 1, { reportId: 7, title: '实验报告 A', content: { conclusion: 'ok' } });
   assert.equal(second.duplicated, true);
   assert.equal(second.entry_id, first.entry_id);
+  assert.throws(() => publishReport(db, 1, { reportId: 7, title: '实验报告 A 改', content: { conclusion: 'changed' } }),
+    (error: any) => error.code === 4009 && /different content/.test(error.message));
   const stored = db.prepare("SELECT title FROM kb_entries WHERE source_type='report' AND source_id=7").get() as { title: string };
   assert.equal(stored.title, '实验报告 A');
   const events = claimKnowledgeEvents(db, 1, 'index');
   assert.equal(events.length, 1);
   assert.equal((events[0] as any).document_id, first.entry_id);
+  db.close();
+});
+
+test('failed sync events are re-claimable with bounded attempts', () => {
+  const db = setup();
+  publishReport(db, 1, { reportId: 11, title: '实验报告 C', content: {} });
+  const [event] = claimKnowledgeEvents(db, 1, 'index') as any[];
+  // First failure: attempts 1, event claimable again.
+  settleKnowledgeEvent(db, 1, event.event_id, 'index', 'failed', event.entry_revision);
+  const reclaimed = claimKnowledgeEvents(db, 1, 'index') as any[];
+  assert.equal(reclaimed.length, 1);
+  assert.equal(reclaimed[0].event_id, event.event_id);
+  assert.equal(reclaimed[0].attempts, 1);
+  // Exhaust the remaining attempts.
+  for (let i = 0; i < 4; i++) settleKnowledgeEvent(db, 1, event.event_id, 'index', 'failed', event.entry_revision);
+  assert.equal(claimKnowledgeEvents(db, 1, 'index').length, 0);
+  assert.throws(() => settleKnowledgeEvent(db, 1, event.event_id, 'index', 'done', event.entry_revision), /attempts exhausted|already settled/);
+  // Graph channel is unaffected by index-channel failures.
+  assert.equal(claimKnowledgeEvents(db, 1, 'graph').length, 1);
   db.close();
 });
 

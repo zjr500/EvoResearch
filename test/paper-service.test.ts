@@ -95,7 +95,7 @@ test('summary model success saves linked structured entry; failure and invalid o
  assert.throws(()=>entryFor(db,2,Number(entry.document_id)),/not found/);
 }));
 test('legacy migration preserves data, removes global uniqueness and is repeatable',()=>setup(async(db)=>{
- migrateKnowledge(db);assert.equal((db.prepare('SELECT count(*) n FROM knowledge_migrations').get() as any).n,4);
+ migrateKnowledge(db);assert.equal((db.prepare('SELECT count(*) n FROM knowledge_migrations').get() as any).n,5);
  db.prepare("INSERT INTO papers(title,file_path,uploader_id,content_hash) VALUES('legacy','x',1,?)").run('a'.repeat(64));
  db.prepare("INSERT INTO papers(title,file_path,uploader_id,content_hash) VALUES('other','x',2,?)").run('a'.repeat(64));
  assert.equal((db.prepare('SELECT count(*) n FROM papers').get() as any).n,2);

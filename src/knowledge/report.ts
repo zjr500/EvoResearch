@@ -22,11 +22,17 @@ export function publishReport(db: Database.Database, owner: number, input: Repor
     const inserted = db.prepare(`INSERT INTO kb_entries(type,title,content,source_type,source_id,owner_id)
       VALUES('experiment_report',?,?,'report',?,?)
       ON CONFLICT(source_type,source_id) DO NOTHING`).run(input.title.trim(), content, input.reportId, owner);
-    const entry = db.prepare("SELECT * FROM kb_entries WHERE source_type='report' AND source_id=?").get(input.reportId) as { entry_id: number; owner_id: number } | undefined;
+    const entry = db.prepare("SELECT * FROM kb_entries WHERE source_type='report' AND source_id=?").get(input.reportId) as { entry_id: number; owner_id: number; title: string; content: string } | undefined;
     if (!entry) throw new AppError(5000, 'Report publication failed');
     if (entry.owner_id !== owner) throw new AppError(4001, 'Report source ID is already used by another owner');
-    if (inserted.changes > 0)
+    if (inserted.changes > 0) {
       db.prepare('INSERT INTO knowledge_sync_events(document_id,owner_id) VALUES(?,?)').run(entry.entry_id, owner);
-    return { entry_id: entry.entry_id, duplicated: inserted.changes === 0 };
+      return { entry_id: entry.entry_id, duplicated: false };
+    }
+    // Same report ID with different content is a conflict, not a duplicate:
+    // silently keeping the old version would publish the wrong report.
+    if (entry.title !== input.title.trim() || entry.content !== content)
+      throw new AppError(4009, 'Report ID already published with different content; use a new report ID');
+    return { entry_id: entry.entry_id, duplicated: true };
   })();
 }
